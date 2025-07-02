@@ -1,5 +1,5 @@
 From Ltac2 Require Import Ltac2 List String Ltac1 Rewrite.
-From Ltac2 Require Import Constr Option Pattern Printf.
+From Ltac2 Require Import Constr Option Pattern Printf Bool.
 
 From Stdlib Require Import Unicode.Utf8 Lia Lra.
 From Stdlib Require Import QArith Psatz Qabs.
@@ -37,6 +37,16 @@ Declare Right Step Z.lt_stepr.
 Declare Left  Step Z.le_stepl.
 Declare Right Step Z.le_stepr.
 
+Module Pos.
+Lemma le_stepl x y z : (x <= y -> z <= x -> z <= y)%positive.
+Proof.
+  intros. lia. 
+Qed.
+End Pos.
+
+Declare Left Step Pos.le_stepl.
+Declare Right Step POrderedType.Positive_as_DT.le_trans.
+
 (* inject_P *)
 Definition inject_P p := inject_Z (Zpos p).
 
@@ -61,6 +71,14 @@ Lemma inject_P_pos x : 0 < inject_P x.
 Proof.
   stepl (inject_Z 0). unfold inject_P. rewrite <-Zlt_Qlt. lia.
   (rewrite Qminmax.Q.OT.le_lteq). right. easy.
+Qed.
+
+(* Zle and Posle *)
+
+Lemma Zle_Posle x y : (0 < x)%Z -> (0 < y)%Z -> (x <= y)%Z = (Z.to_pos x <= Z.to_pos y)%positive.
+Proof.
+  destruct x,y.
+  all : easy.
 Qed.
 
 (* New tactics! *)
@@ -123,17 +141,20 @@ Ltac2 of_bool (b : bool) :=
   end.
 End Message.
 
+Ltac2 constr_to_string (c : constr) :=
+  (Message.to_string (Message.of_constr c)).
+
 (* This function is similar to Pattern.matches_vect*)
 Module Constr.
 Ltac2 rec matches_list (c : constr list) (ce : constr list) :=
   match (c,ce) with
   | ([],[]) => []
   | (chd :: ctl,cehd :: cetl) => 
-  let (x,clist,celist) := if (is_evar cehd) then ([chd],[],[])
+  let (x,clist,celist) := if is_evar cehd then ([(chd,cehd)],[],[])
   else 
     let (chdl,chdr) := decompose_app_list chd in
     let (cehdl,cehdr) := decompose_app_list cehd in
-    if (is_evar cehdl) then ([chdl],chdr,cehdr)
+    if is_evar cehdl then ([(chdl,cehdl)],chdr,cehdr)
     else 
     if (Constr.equal chdl cehdl) then 
       ([],chdr,cehdr)
@@ -145,15 +166,12 @@ Ltac2 rec matches_list (c : constr list) (ce : constr list) :=
   end.
 End Constr.
 
-Ltac2 constr_to_string (c : constr) :=
-  (Message.to_string (Message.of_constr c)).
-
 Ltac2 Notation "nameit" p(thunk(pose)) s(opt(ident)) cl(opt(clause)) :=
   Std.set false p (default_on_concl cl);
   let (idnt,cnstr,_) := List.last (Control.hyps ()) in
   let c1 := (Option.get cnstr) in
   let c2 := (snd (p ())) in
-  let l := (List.map constr_to_string (Constr.matches_list [c1] [c2])) in
+  let l := (List.map (fun (x,_) => constr_to_string x) (filter (fun (_,y) => neg (String.equal (sub (constr_to_string y) 1 1) "i")) (Constr.matches_list [c1] [c2]))) in
   let begin := match s with | Some i => (Ident.to_string i) | None => "" end in
   let st := (String.app begin (String.concat "" l)) in
   printf "Trying the name %s" st;
@@ -178,6 +196,7 @@ Proof.
   lra.
 Qed.
 
+(* Maybe I could use matches_list instead of sep_constr! *)
 Ltac2 rec sep_constr (clist : constr list) (sep : constr) :=
   match clist with
   | [] => []
@@ -229,6 +248,8 @@ Ltac2 pickaxe (ll : int list) (rl : int list) :=
   let (sep,zero) := match! goal with 
   | [|- _ (_ + _) (_ + _)] => ('Qplus,'(0))
   | [|- _ (_ * _) (_ * _)] => ('Qmult,'(1))
+  | [|- _ (_ * _) _] => ('Qmult,'(1))
+  | [|- _ _ (_ * _)] => ('Qmult,'(1))
   | [|- _] => Control.throw Match_failure
   end in 
   let (lc,rc) := match! goal with 

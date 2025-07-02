@@ -5,8 +5,7 @@ From Stdlib Require Import PArith Qminmax List.
 
 (* From parseque Require Import NEList. *)
 
-From Ltac2 Require Import Ltac2.
-From Ltac2 Require Import Ltac1.
+From Ltac2 Require Import Ltac2 Printf Ltac1.
 
 From Bishop Require Import Tactics.
 
@@ -19,8 +18,11 @@ From Bishop Require Import Tactics.
 (* Why Didn't they prove this! *)
 Lemma Qeq_cancel_r a : a - a == 0. Proof. ring. Qed. 
 Lemma Qeq_cancel_l a : -a + a == 0. Proof. ring. Qed.
+Lemma Qminus_dist a b : - (a + b) == (-a - b). Proof. ring. Qed.
 Lemma Qminus_assoc x y z : x + (- y + z) == x - y + z. Proof. ring. Qed.
-(* At least COQ is constructive! |=[_](|< [_] |_34N 4 ! *)
+Lemma Qmake_le_one p : 1 # p <= 1. Proof. unfold Qle. simpl. lia. Qed.
+Lemma Qmake_le_iff_Posle p q : 1 # p <= 1 # q <-> (q <= p)%positive. Proof. unfold Qle. simpl. lia. Qed.
+  (* At least COQ is constructive! |=[_](|< [_] |_34N 4 ! *)
 
 
 Declare Scope R_scope.
@@ -36,6 +38,26 @@ Lemma R_reg_no_Qabs (r:R) n m : (seq r m - seq r n) <= (1 # m) + (1 # n).
 Proof.
   stepl (Qabs (seq r m - seq r n)).
   apply (reg r). apply Qle_Qabs.
+Qed.
+
+Lemma R_seq_le_seq x n m : (seq x m) - ((1 # m) + (1 # n)) <= seq x n <= (seq x m) + ((1 # m) + (1 # n)).
+Proof.
+  exact (proj1 (Qabs_diff_Qle_condition _ _ _) (reg x n m)).
+Qed.
+
+Lemma R_seq_le_seq_of_le x n m N (h : (N <= n)%positive) : (seq x m) - ((1 # m) + (1 # N)) <= seq x n <= (seq x m) + ((1 # m) + (1 # N)).
+Proof.
+  unfold Qminus. rewrite Qminus_dist.
+  constructor.
+  stepr ((seq x m) + (- (1 # m) - (1 # n))).
+  pickaxe [3] [3].
+  unfold Qle. simpl. lia.
+  rewrite <-Qminus_dist.
+  apply R_seq_le_seq.
+  stepl ((seq x m) +  ((1 # m) + (1 # n))).
+  pickaxe [3] [3].
+  unfold Qle. simpl. lia.
+  apply R_seq_le_seq.
 Qed.
 
 Print R.
@@ -60,12 +82,19 @@ Check reg (of_Q 2) 2 4.
 
 Definition Req (x y : R) : Prop := ∀n, Qabs (seq x n - seq y n) <= Qmake 2 n .
 
-Infix "=ʳ" := Req (at level 70, no associativity).
+Infix "≖" := Req (at level 70, no associativity).
 
-(* (2.2) Proposition. *)
+Lemma R_eq_seq x y: (∀n, seq x n == seq y n) -> x ≖ y.
+Proof.
+  unfold Req. intros.
+  rewrite H. rewrite Qeq_cancel_r.
+  easy.
+Qed.
+
+
 (** * Properties of equality. *)
-
-Theorem Req_refl x : x =ʳ x.
+(* (2.2) Proposition. (i) *)
+Proposition Req_refl x : x ≖ x.
 Proof.
   unfold Req.
   intro.
@@ -73,7 +102,8 @@ Proof.
   easy.
 Qed.
 
-Theorem Req_sym x y : x =ʳ y → y =ʳ x.
+(* (2.2) Proposition. (ii) *)
+Proposition Req_sym x y : x ≖ y → y ≖ x.
 Proof.
   unfold Req.
   intros.
@@ -83,7 +113,7 @@ Qed.
 
 (* Some Extra stuff *)
 
-Lemma Req_of_Qed a b : a = b -> of_Q a =ʳ of_Q b.
+Lemma Req_of_Qed a b : a = b -> of_Q a ≖ of_Q b.
 Proof.
   intros. rewrite H. exact (Req_refl (of_Q b)).
 Qed. 
@@ -190,7 +220,7 @@ Qed.
 
 Print Assumptions forall_Qplus_inv.
 
-Definition exists_of_Req_def x y : x =ʳ y -> ∀j, { N:positive | ∀n, (N <= n)%positive -> Qabs (seq x n - seq y n) <= Qmake 1 j}.
+Definition exists_of_Req_def x y : x ≖ y -> ∀j, { N:positive | ∀n, (N <= n)%positive -> Qabs (seq x n - seq y n) <= Qmake 1 j}.
 Proof. 
   intros. exists (2*j)%positive. intros. unfold Req in H.
   assert (2 # n <= 1 # j).
@@ -205,7 +235,7 @@ Defined.
 (* (2.3) Lemma. *)
 (* Hint : I guess (∀n j, ∃N) is different from (∀j ∃N, ∀n) *)
 (* I use sig instead of ∃ *)
-Lemma Req_iff_exists x y : x =ʳ y <-> ∀j, ∃N, ∀n, (N <= n)%positive -> Qabs (seq x n - seq y n) <= Qmake 1 j .
+Lemma Req_iff_exists x y : x ≖ y <-> ∀j, ∃N, ∀n, (N <= n)%positive -> Qabs (seq x n - seq y n) <= Qmake 1 j .
 Proof.
   constructor.
   - intros. exact (ex_of_sig (exists_of_Req_def x y H j)).
@@ -233,7 +263,8 @@ Proof.
   ring.
 Qed.
 
-Theorem Req_trans x y z : x =ʳ y -> y =ʳ z -> x =ʳ z.
+(* (2.2) Proposition. (iii) *)
+Proposition Req_trans x y z : x ≖ y -> y ≖ z -> x ≖ z.
 Proof.
   repeat (rewrite Req_iff_exists). intros.
   specialize (H (2*j)%positive). destruct H.
@@ -253,14 +284,31 @@ Print Assumptions Req_trans.
 (* canonical bound *)
 Compute Qceiling (331 # 20).
 
-(* Note that this definition is a little different from Bishop's book *)
-Definition K (x : R) : Z := (Qfloor (Qabs (seq x 1) + 0.5) + 2)%Z. 
+Definition Qround a := Qfloor (a + 0.5).
 
-Definition Kp (x : R) : positive := Z.to_pos (K x).
+Notation "⎡ x ⎦" := (Qround x) : Z_scope.
+
+(* Note that this definition is a little different from Bishop's book *)
+Definition K x : Z := (⎡(Qabs (seq x 1))⎦ + 2)%Z. 
+
+Definition Kp x : positive := Z.to_pos (K x).
 (* Wrong Definition. K' isn't the least integer.
 Definition K' (x : R) : Z := (Qfloor (Qabs (seq x 1)) + 3)%Z. 
 Compute K (of_Q 2).
 Compute K' (of_Q 2). *)
+
+Lemma two_le_Kp x : (2 <= (Kp x))%positive.
+Proof.
+  unfold Kp,K.
+  assert (0<=(⎡(Qabs (seq x 1))⎦))%Z.
+  unfold Qround. stepl (Qfloor 0).
+  refine (Qfloor_resp_le _ _ _).
+  stepr (Qabs (seq x 1)). apply Qabs_nonneg.
+  lra. easy.  
+  stepl (Z.to_pos 2).
+  rewrite <-Zle_Posle.
+  all : lia.
+Qed.
 
 Lemma K_gt x n : Qabs (seq x n) < inject_Z (K x).
 Proof.
@@ -268,7 +316,7 @@ Proof.
   destruct (Pos.eq_dec n 1).
   - rewrite e. unfold K. stepr (inject_Z (Qfloor (Qabs (seq x 1) + 0.5) + 1) + 1).
     + lra.
-    + proveeq.
+    + proveeq. unfold Qround.
       repeat (rewrite inject_Z_plus). ring.
   - stepl (Qabs (seq x n - seq x 1) + Qabs (seq x 1)).
     stepl ((1 # n) + 1 + Qabs (seq x 1)).
@@ -276,7 +324,7 @@ Proof.
     unfold K.
     stepr (inject_Z (Qfloor (Qabs (seq x 1) + 0.5) + 1) + 1).
     + lra.
-    + proveeq.
+    + proveeq. unfold Qround.
       repeat (rewrite inject_Z_plus). ring.
     + assert ((1 # n) <= 0.5). unfold Qle. simpl. lia. lra.
     + assert _ by exact (reg x 1 n). lra.
@@ -440,3 +488,148 @@ Time Compute seq (Rmax (of_Q 1) (of_Q 200)) 20. (* 200 *)
   rewrite (Qplus_comm (1 # m) (1 # n)).
   rewrite Qplus_comm. apply reg.
 Defined.
+
+Notation "- x" := (Ropp x) : R_scope.
+
+Definition Rminus (x y : R) := (x + - y)%R.
+
+(* (2.4) Definition. Part (e) *) 
+Check of_Q. (* use this *)
+
+(* (2.5) Proposition. is already proved in Definition 2.4*) 
+
+Definition Rabs (x : R) := (Rmax x (-x))%R.
+
+Definition Rmin (x y : R) := (- Rmax (-x) (-y))%R.
+
+(* (2.6) Proposition. (a) *)
+Proposition Rplus_comm x y : (x + y ≖ y + x)%R.
+Proof.
+  refine (R_eq_seq _ _ _). intros.
+  simpl. apply Qplus_comm.
+Qed.
+
+Proposition Rmult_comm x y : (x * y ≖ y * x)%R.
+Proof.
+  refine (R_eq_seq _ _ _). intros.
+  simpl. rewrite Pos.max_comm. apply Qmult_comm.
+Qed.
+
+(* (2.6) Proposition. (b) *)
+Proposition Rplus_assoc x y z : ((x + y) + z ≖ x + (y + z))%R.
+Proof.
+  unfold Req. intros. simpl seq. 
+  do 2 (nameit (seq _ (n)~0) r2).
+  do 3 (nameit (seq _ (n~0)~0) r4).
+  stepl (Qabs (r4x - r2x + r2z - r4z)).
+  2: { proveeq. refine (Qabs_wd _ _ _). ring. }
+  stepl (Qabs (r4x - r2x) + Qabs (r2z - r4z)).
+  2: { unfold Qminus. rewrite <-Qplus_assoc. apply Qabs_triangle. }
+  stepl ((1 # (n~0~0)) + (1 # (n~0))  + (1 # (n~0)) + (1 # (n~0~0))).
+  2: { pickaxe [1] [1;2]. apply reg. apply reg. }
+  unfold Qle. simpl. lia.
+Qed.
+
+Lemma Qminus_mult_3 a b c a1 b1 c1 : a*b*c - a1*b1*c1 == a*b*(c - c1) + a*c1*(b - b1) + b1*c1*(a - a1).
+Proof.
+  ring.
+Qed.
+
+Lemma Qminus_mult_2 a b a1 b1 : a*b - a1*b1 == a*(b - b1) + b1*(a - a1).
+Proof.
+  ring.
+Qed.
+
+(* Lemma Kp_Rmult_le_mult x y : (K (x * y)%R <= 2 * K (x) * K (y))%Z.
+Proof.
+  unfold K. simpl seq.
+  do 2 (nameit (seq _ (Pos.max (Kp x) (Kp y))~0) S). 
+  set (K x * K y)%Z.
+  stepl (Qfloor (Qabs (Sx * Sy) + 0.5) + 2)%Z.
+  2 : {  admit. }
+Qed. *)
+
+Lemma Qmult_inject_P_Qmake_cancel p p2 z : inject_P p * (z # (p2*p)) == (z # (p2)). 
+Proof.
+  unfold inject_P.
+  rewrite Qmult_inject_Z_l,Pos.mul_comm.
+  apply Qreduce_l.
+Qed.
+
+Lemma Qabs_Qle x y : Qabs x <= Qabs y -> x <= Qabs y.
+Proof.
+  intros. destruct (Qlt_le_dec 0 x). 
+  - rewrite <-(Qabs_pos x). easy. lra.
+  - stepl 0. apply Qabs_nonneg. exact q.
+Qed.
+
+Proposition Rmult_assoc x y z : ((x * y) * z ≖ x * (y * z))%R.
+Proof.
+  rewrite Req_iff_exists. intros.
+  do 2 (simpl head seq).
+  do 2 (nameit (_ * _)%R p).
+  do 4 (nameit (Pos.max (Kp _) (Kp _)) m).
+  exists (6 * j * (Kp x) * (Kp y) * (Kp z))%positive.
+  intros.
+  do 3 (nameit (seq _ ?[ign]) S).
+  do 3 (nameit (seq _ ?[ign]) S2).
+  rewrite Qmult_assoc,Qminus_mult_3.
+  stepl (Qabs (Sx * Sy * (Sz - S2z)) + Qabs (Sx * S2z * (Sy - S2y)) + Qabs (S2y * S2z * (Sx - S2x)) ).
+  2 : { apply Qabs_triangle_3. }
+  remember (6 * j * (Kp x) * (Kp y) * (Kp z))%positive as Nj.
+  remember (fun x => inject_P (Kp x)) as Kq.
+  remember (fun x y => 2 # (6 * j * (Kp x) * (Kp y))) as Aj.
+  stepl (Kq x * Kq y * (Aj x y) + Kq x * Kq z * (Aj x z) + Kq y * Kq z * (Aj y z)).
+  2 : {
+    assert (2=1+1)%Z. easy.
+    rewrite HeqAj. rewrite H0.
+    do 3 (rewrite <-Qinv_plus_distr).
+    rewrite HeqKq.
+    pickaxe [1] [1].
+    2 : pickaxe [1] [1].
+    Local Ltac2 Notation "tac1" := rewrite Qabs_Qmult;
+      pickaxe [1] [1;2];
+      Control.focus 1 1 (fun () => 
+        rewrite Qabs_Qmult;
+        pickaxe [1] [1];
+        Control.focus 1 1 (fun () => provelt; apply Kp_gt);
+        Control.focus 1 1 (fun () => provelt; apply Kp_gt)
+        ).
+    Local Ltac2 tac2 (n1 : int) (n2 : int) := 
+      do n1 (rewrite Qmult_frac_r); pickaxe [1] [1];
+      Control.focus 1 1 (fun () => pickaxe [n2] [1]);
+      Control.focus 1 1 (fun () => rewrite Qmake_le_iff_Posle;
+        stepr &Nj; rewrite &HeqNj;
+        nia; lia);
+      Control.focus 1 1 (fun () => apply Qmake_le_one).
+    - tac1.
+      refine (Qle_stepl _ _ _ _ (reg z _ _)).
+      tac2 6 2. 
+      pickaxe [3] [1]. rewrite Qmake_le_iff_Posle.
+      stepr Nj. rewrite HeqNj.
+      nia. lia. apply Qmake_le_one.
+    - tac1.
+      refine (Qle_stepl _ _ _ _ (reg y _ _)).
+      tac2 8 3.
+      pickaxe [3] [1]. rewrite Qmake_le_iff_Posle.
+      stepr Nj. rewrite HeqNj.
+      nia. lia. apply Qmake_le_one.
+    - tac1.
+      refine (Qle_stepl _ _ _ _ (reg x _ _)).
+      tac2 6 3.
+      pickaxe [2] [1]. rewrite Qmake_le_iff_Posle.
+      stepr Nj. rewrite HeqNj.
+      nia. lia. apply Qmake_le_one.
+    }
+  stepl (Qabs (1 # j)).
+  simpl. lra.
+  rewrite HeqAj,HeqKq.
+  do 3 (rewrite <-Qmult_assoc).
+  do 6 (rewrite Qmult_inject_P_Qmake_cancel).
+  unfold Qle. simpl. lia.
+Qed.
+
+Print Assumptions Rmult_assoc.
+
+
+
