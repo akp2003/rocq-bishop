@@ -241,28 +241,6 @@ Qed.
 
 Print Assumptions Req_trans.
 
-(* Why don't they add this to COQ!! *)
-Lemma Qle_stepl : ∀ x y z : Q, x <= y → z <= x → z <= y.
-Proof.
-  intros. lra.
-Qed.
-
-Declare Left Step Qle_stepl.
-Declare Right Step Qle_trans.
-
-Lemma Qlt_stepl : ∀ x y z : Q, x < y → z <= x → z < y.
-Proof.
-  intros. lra.
-Qed.
-
-Declare Left Step Qlt_stepl.
-Declare Right Step Qlt_le_trans.
-
-Declare Left  Step Z.lt_stepl.
-Declare Right Step Z.lt_stepr.
-Declare Left  Step Z.le_stepl.
-Declare Right Step Z.le_stepr.
-
 (* canonical bound *)
 Compute Qceiling (331 # 20).
 
@@ -300,8 +278,6 @@ Proof.
       assumption.
 Qed.
 
-Declare Left Step Z.le_stepl.
-
 Lemma K_pos x : (0 < (K x))%Z.
 Proof.
   unfold K.
@@ -314,25 +290,6 @@ Proof.
   assert (0 < 2)%Z. lia.
   exact (Z.add_nonneg_pos _ _ H H0).
   (* Either Coq is too stupid or I don't know how to use it!!! *)
-Qed.
-
-Definition inject_P p := inject_Z (Zpos p).
-
-(** injection from Pos is injective. *)
-
-Lemma inject_P_injective (a b: positive): inject_P a == inject_P b <-> a = b.
-Proof.
- unfold Qeq. simpl. rewrite (Pos2Z.inj_iff (a*1) (b*1)). rewrite !Pos.mul_1_r; reflexivity.
-Qed.
-
-Lemma Posle_Qle x y: (x <= y)%positive = (inject_P x <= inject_P y).
-Proof.
- unfold Qle. simpl. now rewrite !Pos.mul_1_r.
-Qed.
-
-Lemma Poslt_Qlt x y: (x < y)%positive = (inject_P x < inject_P y).
-Proof.
- unfold Qlt. simpl. now rewrite !Pos.mul_1_r.
 Qed.
 
 Lemma Kp_gt x n : Qabs (seq x n) < inject_P (Kp x).
@@ -379,6 +336,15 @@ Time Compute seq ((of_Q 1) + (of_Q 3))%R 10. (* 4 *)
   stepl (Qabs xm * Qabs (ym - yn) + Qabs yn * Qabs (xm - xn)).
   2: { do 2 (rewrite <-Qabs_Qmult). apply Qabs_triangle. }
   stepl ((inject_P k) * Qabs (ym - yn) + (inject_P k) * Qabs (xm - xn)).
-  2: { admit. }
-Admitted.
+  2: { pickaxe [1] [1]. pickaxe [1] [1]. exact H. lra.
+  pickaxe [1] [1]. exact H0. lra. }
+  stepl ((inject_P k) * ((1 # 2*m*k) + (1 # 2*n*k)) + (inject_P k) * ((1 # 2*m*k) + (1 # 2*n*k))).
+  2: { pickaxe [1] [1]. pickaxe [1] [1]. proveeq. reflexivity.
+  exact (reg y (2*n*k) (2*m*k)). pickaxe [1] [1]. proveeq;reflexivity. exact (reg x (2*n*k) (2*m*k)). }
+  proveeq. unfold inject_P. unfold inject_Z. unfold Qeq. simpl. lia.
+Defined.
+
+Infix "*" := Rmult : R_scope.
+
+Time Compute seq ((of_Q 40) * (of_Q 3))%R 10. (* 120 *)
 

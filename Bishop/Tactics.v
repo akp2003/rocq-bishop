@@ -2,7 +2,7 @@ From Ltac2 Require Import Ltac2 List String Ltac1 Rewrite.
 From Ltac2 Require Import Constr Option Pattern Printf.
 
 From Stdlib Require Import Unicode.Utf8 Lia Lra.
-From Stdlib Require Import QArith Psatz.
+From Stdlib Require Import QArith Psatz Qabs.
 
 Ltac2 Notation "ring" := ltac1:(ring).
 Ltac2 Notation "field" := ltac1:(field).
@@ -14,6 +14,54 @@ Ltac2 Notation "nia" := ltac1:(nia).
 Ltac2 Notation "stepl" c(constr) := ltac1:(c|-stepl c) (Ltac1.of_constr c).
 Ltac2 Notation "stepr" c(constr) := ltac1:(c|-stepr c) (Ltac1.of_constr c).
 Ltac2 Notation "refine" c(thunk(open_constr)) := Control.refine c.
+
+(* Why don't they add this to COQ!! *)
+Lemma Qle_stepl : ∀ x y z : Q, x <= y → z <= x → z <= y.
+Proof.
+  intros. lra.
+Qed.
+
+Declare Left Step Qle_stepl.
+Declare Right Step Qle_trans.
+
+Lemma Qlt_stepl : ∀ x y z : Q, x < y → z <= x → z < y.
+Proof.
+  intros. lra.
+Qed.
+
+Declare Left Step Qlt_stepl.
+Declare Right Step Qlt_le_trans.
+
+Declare Left  Step Z.lt_stepl.
+Declare Right Step Z.lt_stepr.
+Declare Left  Step Z.le_stepl.
+Declare Right Step Z.le_stepr.
+
+(* inject_P *)
+Definition inject_P p := inject_Z (Zpos p).
+
+(** injection from Pos is injective. *)
+
+Lemma inject_P_injective (a b: positive): inject_P a == inject_P b <-> a = b.
+Proof.
+ unfold Qeq. simpl. rewrite (Pos2Z.inj_iff (a*1) (b*1)). rewrite !Pos.mul_1_r; reflexivity.
+Qed.
+
+Lemma Posle_Qle x y: (x <= y)%positive = (inject_P x <= inject_P y).
+Proof.
+ unfold Qle. simpl. now rewrite !Pos.mul_1_r.
+Qed.
+
+Lemma Poslt_Qlt x y: (x < y)%positive = (inject_P x < inject_P y).
+Proof.
+ unfold Qlt. simpl. now rewrite !Pos.mul_1_r.
+Qed.
+
+Lemma inject_P_pos x : 0 < inject_P x.
+Proof.
+  stepl (inject_Z 0). unfold inject_P. rewrite <-Zlt_Qlt. lia.
+  (rewrite Qminmax.Q.OT.le_lteq). right. easy.
+Qed.
 
 (* New tactics! *)
 
@@ -90,10 +138,10 @@ Ltac2 rec matches_list (c : constr list) (ce : constr list) :=
     if (Constr.equal chdl cehdl) then 
       ([],chdr,cehdr)
     else
-      Control.zero Match_failure
+      Control.throw Match_failure
   in
     List.append x (matches_list (List.append clist ctl) (List.append celist cetl))
-  | _ => Control.zero Match_failure
+  | _ => Control.throw Match_failure
   end.
 End Constr.
 
@@ -115,7 +163,7 @@ Ltac2 Notation "nameit" p(thunk(pose)) s(opt(ident)) cl(opt(clause)) :=
   end; Std.unify c1 c2. (* Will remove those unwanted goals produced in shelve somehow! *)
 
 (* Test nameit *)
-Local Lemma l (a b c d:Q) (f:Q->Q->Q->Q) (bad_name : Q): f a 1 bad_name + f 1 b bad_name = a -> f c d bad_name = f (d+1) a bad_name.
+Local Lemma test_nameit (a b c d:Q) (f:Q->Q->Q->Q) (bad_name : Q): f a 1 bad_name + f 1 b bad_name = a -> f c d bad_name = f (d+1) a bad_name.
   do 4 (nameit (f _ _ bad_name) f).
 Abort.
 
@@ -141,6 +189,15 @@ Ltac2 rec sep_constr (clist : constr list) (sep : constr) :=
     c :: (sep_constr crest sep)
   end.
 
+(* sep must be a binary operator *)
+Ltac2 rec join_constr (clist : constr list) (sep : constr) :=
+  match clist with
+  | [] => None
+  | [c] => Some c
+  | c :: crest => let r := Option.get (join_constr crest sep) in
+   Some '($sep $c $r)
+  end.
+
 Ltac2 rec partition_index (l : 'a list) (ind : int list) (s : int) : 'a list * 'a list :=
   if (List.is_empty ind) then
     ([],l)
@@ -162,9 +219,51 @@ Ltac2 Eval partition_index ["one";"two";"three";"four";"five"] [1] 1.
 
 Ltac2 Eval sep_constr ['(1+(1*4+(2313+2^3)))] 'Qplus.
 Ltac2 Eval sep_constr ['(-1-(1*4+(2313+2^3)))] 'Qplus.
+Ltac2 Eval join_constr (sep_constr ['(-1+(1*4+(2313+2^3)))] 'Qplus) 'Qplus.
 
+(* TODO : This tactic is a little slow. *)
 Ltac2 pickaxe (ll : int list) (rl : int list) :=
-  match! goal with 
-  | [|- _ + _ <= _ + _] => printf "s"
-  | [|- _] => Control.zero Match_failure
+  (* List start with 1 *)
+  let st := 1 in
+  let (sep,zero) := match! goal with 
+  | [|- _ (_ + _) (_ + _)] => (unfold Qminus);('Qplus,'(0))
+  | [|- _ (_ * _) (_ * _)] => (unfold Qdiv);('Qmult,'(1))
+  | [|- _] => Control.throw Match_failure
+  end in 
+  let (lc,rc) := match! goal with 
+  | [|- _ ?l ?r] => (l,r)
+  | [|- _] => Control.throw Match_failure
+  end in 
+  let lls := sep_constr [lc] sep in
+  let (lll,llr) := partition_index lls ll st in
+  let rls := sep_constr [rc] sep in
+  let (rll,rlr) := partition_index rls rl st in
+  let (lsl,lsr) := (default zero (join_constr lll sep),default zero (join_constr llr sep)) in    
+  let left_side := '($sep $lsl $lsr) in
+  let (rsl,rsr) := (default zero (join_constr rll sep),default zero (join_constr rlr sep)) in 
+  let right_side := '($sep $rsl $rsr) in
+  (* printf "%t <= %t" left_side right_side; *)
+  ltac1:(rc right_side|- assert (rc == right_side) as internalH_for_pickaxe_r by (ring)) (Ltac1.of_constr rc) (Ltac1.of_constr right_side);
+  try (rewrite &internalH_for_pickaxe_r);
+  ltac1:(lc left_side|- assert (lc == left_side) as internalH_for_pickaxe_l by (ring)) (Ltac1.of_constr lc) (Ltac1.of_constr left_side);
+  try (rewrite &internalH_for_pickaxe_l);
+  Std.clear [@internalH_for_pickaxe_l;@internalH_for_pickaxe_r]; 
+  match! goal with
+  | [|- (_ + _) <= (_ + _)] => refine (Qplus_le_compat $lsl $rsl $lsr $rsr _ _)
+  | [|- (_ * _) <= (_ * _)] =>
+  refine (Qmult_le_compat_nonneg $lsl $rsl $lsr $rsr _ _);
+  constructor; try (apply Qabs_nonneg); try (provelt;apply inject_P_pos)
+  | [|- _] => Control.throw Match_failure
   end.
+
+Local Lemma pickaxe_test (a b c d e f : Q) (p : positive) :  Qabs b * inject_P p <= (d - f) * (e * a).
+Proof.
+  time (pickaxe [1] [2]).
+Abort.
+
+Local Lemma pickaxe_test (a b c d e f : Q) :  b + c <= (d - f) + (e + a).
+Proof.
+  time (pickaxe [1;2] [1;2;4]).
+Abort.
+
+
