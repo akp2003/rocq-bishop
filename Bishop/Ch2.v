@@ -1,14 +1,25 @@
 From Stdlib Require Import Unicode.Utf8 BinNat Lia Lra.
-From Stdlib Require Import QArith Qabs Qcanon Qabs Psatz.
+From Stdlib Require Import QArith Qabs Psatz.
 
-From Coq Require Import ssreflect ssrfun ssrbool.
-(* From Stdlib Require Import All. *)
+From Stdlib Require Import ssreflect ssrfun ssrbool.
+
+(* From Hammer Require Import Tactics. *)
+
+(* From Stdlib Require Import All. 
+   Search Qle. 
+  *)
+  
+(* Why Didn't they prove this! *)
+Lemma Qeq_cancel_r a : a - a == 0. Proof. ring. Qed. 
+Lemma Qeq_cancel_l a : -a + a == 0. Proof. ring. Qed.
+Lemma Qminus_assoc x y z : x + (- y + z) == x - y + z. Proof. ring. Qed.
+(* At least COQ is constructive! |=[_](|< [_] |_34N 4 ! *)
 
 (* (2.1) Definition. *)
 Structure R : Set := Rmake {
     seq : positive → Q;
     reg (n m : positive) : Qabs (seq m - seq n) <= Qmake 1 m + Qmake 1 n
-    }.
+  }.
 
 Print R.
 
@@ -19,8 +30,7 @@ Print Assumptions R.
 Definition of_Q (a:Q) : R.
   refine (Rmake (fun (n : positive) => a ) _).
   intros.
-  have h : (a - a) == 0. ring.
-  rewrite h.
+  rewrite Qeq_cancel_r.
   easy. 
 Defined. (*If you write Qed instead of Defined then Compute will show weird things!*)
 
@@ -43,8 +53,7 @@ Theorem Req_refl x : x =ʳ x.
 Proof.
   unfold Req.
   intro.
-  have h : seq x n - seq x n == 0. ring.
-  rewrite h.
+  rewrite Qeq_cancel_r.
   easy.
 Qed.
 
@@ -208,8 +217,6 @@ Proof.
     exact (forall_Qplus_inv (2 # n) (Qabs (seq x n - seq y n)) 3 h).
 Qed.
 
-Print Assumptions Req_iff_exists.
-
 (* It is not just a proof, it is an algorithm! *)
 Compute proj1_sig (exists_of_Req_def (of_Q 2) (of_Q 2) (Req_of_Qed 2 2 eq_refl) 500).
 
@@ -232,3 +239,75 @@ Proof.
   rewrite h in H2.
   lra. Unshelve. lia. lia.
 Qed.
+
+Print Assumptions Req_trans.
+
+(* Why don't they add this to COQ!! *)
+Lemma Qle_stepl : ∀ x y z : Q, x <= y → z <= x → z <= y.
+Proof.
+  intros. lra.
+Qed.
+
+Declare Left Step Qle_stepl.
+Declare Right Step Qle_trans.
+
+Lemma Qlt_stepl : ∀ x y z : Q, x < y → z <= x → z < y.
+Proof.
+  intros. lra.
+Qed.
+
+Declare Left Step Qlt_stepl.
+Declare Right Step Qlt_le_trans.
+
+(* canonical bound *)
+Compute Qround.Qceiling (331 # 20).
+
+(* Note that this definition is a little different from Bishop's book *)
+Definition K (x : R) : Z := (Qround.Qfloor (Qabs (seq x 1) + 0.5) + 2)%Z. 
+
+(* Wrong Definition. K' isn't the least integer.
+Definition K' (x : R) : Z := (Qround.Qfloor (Qabs (seq x 1)) + 3)%Z. 
+Compute K (of_Q 2).
+Compute K' (of_Q 2). *)
+
+Ltac proofeq  := rewrite Qminmax.Q.OT.le_lteq;right.
+
+Lemma K_ge x n : Qabs (seq x n) < inject_Z (K x).
+Proof.
+  pose proof Qround.Qlt_floor (Qabs (seq x 1) + 0.5).
+  destruct (Pos.eq_dec n 1).
+  - rewrite e. unfold K. stepr (inject_Z (Qround.Qfloor (Qabs (seq x 1) + 0.5) + 1) + 1).
+    + lra.
+    + proofeq.
+      repeat rewrite inject_Z_plus. ring.
+  - stepl (Qabs (seq x n - seq x 1) + Qabs (seq x 1)).
+    stepl ((1 # n) + 1 + Qabs (seq x 1)).
+    stepl (Qabs (seq x 1) + 0.5 + 1).
+    unfold K.
+    stepr (inject_Z (Qround.Qfloor (Qabs (seq x 1) + 0.5) + 1) + 1).
+    + lra.
+    + proofeq.
+      repeat rewrite inject_Z_plus. ring.
+    + have h : (1 # n) <= 0.5. unfold Qle. simpl. lia. lra.
+    + pose proof reg x 1 n. lra.
+    + pose proof Qabs_triangle (seq x n - seq x 1) (seq x 1).
+      rewrite <-Qminus_assoc in H0.
+      rewrite (Qeq_cancel_l (seq x 1)) in H0.
+      rewrite Qplus_0_r in H0.
+      assumption.
+Qed.
+
+Print Assumptions K_ge.
+
+Definition Rplus (x y : R) : R.
+  refine (Rmake (fun (n : positive) => (seq x (2*n)) + (seq y (2*n)) ) _).
+  intros.
+  stepl (Qabs ((seq x (2 * m) - seq x (2 * n)) + (seq y (2 * m) - seq y (2 * n)))).
+  2: { proofeq. refine (Qabs_wd _ _ _). ring. }
+  stepl (Qabs (seq x (2 * m) - seq x (2 * n)) + Qabs (seq y (2 * m) - seq y (2 * n))).
+  2: { auto using Qabs_triangle. }
+Admitted.
+
+Infix "+" := Rplus : R_scope.
+
+(* Compute seq ((of_Q 1) + (of_Q 1))%R . *)
