@@ -1,14 +1,11 @@
 (* BEAWARE If you change the order of these two lines, your COQ will be fucked up! *)
 From Stdlib Require Import Unicode.Utf8 BinNat Lia Lra.
-From Stdlib Require Import QArith Qabs Psatz Zify Qround.
+From Stdlib Require Import QArith Qabs Psatz Zify Qround PArith.
 
 From Ltac2 Require Import Ltac2.
 From Ltac2 Require Import Ltac1.
 
-Ltac2 Notation "ring" := ltac1:(ring).
-Ltac2 Notation "easy" := ltac1:(easy).
-Ltac2 Notation "lra" := ltac1:(lra).
-Ltac2 Notation "lia" := ltac1:(lia).
+From Bishop Require Import Tactics.
 
 (* From Hammer Require Import Tactics. *)
 
@@ -113,20 +110,12 @@ Proof.
   (* Beautiful proof!*)
 Qed.
   
-
 Lemma Qabs_triangle_3_diff a b x y : Qabs (a - b) <= Qabs (a - x) + Qabs (x - y) + Qabs (y - b). 
 Proof.
   assert ((a - b) == (a - x) + (x - y) + (y - b)). ring.
   rewrite H.
   exact (Qabs_triangle_3 (a - x) (x - y) (y - b)).
 Qed.
-
-(* Trying to prove nonsense in COQ (Attempt was not successful though!) *)
-(* Lemma l : 1 = 2.
-Proof.
-  evar (hm : 1 = 2).
-  exact hm.
-Qed. *)
 
 (* Lemma l0 D : (∀p N, N * p <= D)%N → False.
 Proof.
@@ -178,7 +167,7 @@ Proof.
     unfold Qlt in H1. simpl in *.
     assert (1 <= Qnum M)%Z. lia.
     assert (1 * Z.pos ((Z.to_pos n) * Qden (M) + 1) <= (n * QDen M))%Z.
-      ltac1:(refine (Zmult_le_replace_nonneg (Qnum M) (Z.pos ((Z.to_pos n) * Qden (M) + 1)) (n * QDen M) 1 _ (conj _ H0) H2)).
+      refine (Zmult_le_replace_nonneg (Qnum M) (Z.pos ((Z.to_pos n) * Qden (M) + 1)) (n * QDen M) 1 _ (conj _ H0) H2).
       lia. lia.
     assert (Z.pos ((Z.to_pos n) * Qden (M) + 1) = Z.pos ((Z.to_pos n) * Qden (M)) + 1)%Z. easy. 
     destruct (ZArith_dec.Z_dec' n 0). destruct s. lia.
@@ -196,7 +185,7 @@ Definition exists_of_Req_def x y : x =ʳ y -> ∀j, { N:positive | ∀n, (N <= n
 Proof. 
   intros. exists (2*j)%positive. intros. unfold Req in H.
   assert (2 # n <= 1 # j).
-     ltac1:(refine (proj2 (Qinv_le_contravar (2 # n) (1 # j) _ _) _)).
+     refine (proj2 (Qinv_le_contravar (2 # n) (1 # j) _ _) _).
      easy. easy.
      rewrite Qinv_pos. rewrite Qinv_pos.
      (* Hint : just unfold Qle and simpl and then enjoy lia! *)
@@ -286,18 +275,13 @@ Definition K' (x : R) : Z := (Qfloor (Qabs (seq x 1)) + 3)%Z.
 Compute K (of_Q 2).
 Compute K' (of_Q 2). *)
 
-Ltac2 Notation "proofeq"  := (rewrite Qminmax.Q.OT.le_lteq);right.
-Ltac2 Notation "stepl" c(constr) := ltac1:(c|-stepl c) (Ltac1.of_constr c).
-Ltac2 Notation "stepr" c(constr) := ltac1:(c|-stepr c) (Ltac1.of_constr c).
-
-
-Lemma K_ge x n : Qabs (seq x n) < inject_Z (K x).
+Lemma K_gt x n : Qabs (seq x n) < inject_Z (K x).
 Proof.
   assert _ by exact (Qlt_floor (Qabs (seq x 1) + 0.5)).
   destruct (Pos.eq_dec n 1).
   - rewrite e. unfold K. stepr (inject_Z (Qfloor (Qabs (seq x 1) + 0.5) + 1) + 1).
     + lra.
-    + proofeq.
+    + proveeq.
       repeat (rewrite inject_Z_plus). ring.
   - stepl (Qabs (seq x n - seq x 1) + Qabs (seq x 1)).
     stepl ((1 # n) + 1 + Qabs (seq x 1)).
@@ -305,7 +289,7 @@ Proof.
     unfold K.
     stepr (inject_Z (Qfloor (Qabs (seq x 1) + 0.5) + 1) + 1).
     + lra.
-    + proofeq.
+    + proveeq.
       repeat (rewrite inject_Z_plus). ring.
     + assert ((1 # n) <= 0.5). unfold Qle. simpl. lia. lra.
     + assert _ by exact (reg x 1 n). lra.
@@ -322,7 +306,7 @@ Lemma K_pos x : (0 < (K x))%Z.
 Proof.
   unfold K.
   assert (0 <= Qfloor (Qabs (seq x 1) + 0.5))%Z. 
-    stepl (Qfloor 0). ltac1:(refine (Qfloor_resp_le _ _ _)).
+    stepl (Qfloor 0). refine (Qfloor_resp_le _ _ _).
     stepr (Qabs (seq x 1)).
     exact (Qabs_nonneg (seq x 1)).
     unfold Qle. simpl. lia.
@@ -332,37 +316,69 @@ Proof.
   (* Either Coq is too stupid or I don't know how to use it!!! *)
 Qed.
 
-Lemma Kp_ge x n : Qabs (seq x n) < inject_Z (Zpos (Kp x)).
+Definition inject_P p := inject_Z (Zpos p).
+
+(** injection from Pos is injective. *)
+
+Lemma inject_P_injective (a b: positive): inject_P a == inject_P b <-> a = b.
 Proof.
-  unfold Kp. rewrite (Z2Pos.id _ (K_pos x)).
-  exact (K_ge x n).
+ unfold Qeq. simpl. rewrite (Pos2Z.inj_iff (a*1) (b*1)). rewrite !Pos.mul_1_r; reflexivity.
 Qed.
 
-Print Assumptions K_ge.
+Lemma Posle_Qle x y: (x <= y)%positive = (inject_P x <= inject_P y).
+Proof.
+ unfold Qle. simpl. now rewrite !Pos.mul_1_r.
+Qed.
+
+Lemma Poslt_Qlt x y: (x < y)%positive = (inject_P x < inject_P y).
+Proof.
+ unfold Qlt. simpl. now rewrite !Pos.mul_1_r.
+Qed.
+
+Lemma Kp_gt x n : Qabs (seq x n) < inject_P (Kp x).
+Proof.
+  unfold Kp. unfold inject_P. rewrite (Z2Pos.id _ (K_pos x)).
+  exact (K_gt x n).
+Qed.
+
+Print Assumptions K_gt.
 
 (* (2.4) Definition. Part (a) *)
 #[refine] Definition Rplus (x y : R) : R := {| seq := (fun (n : positive) => (seq x (2*n)) + (seq y (2*n)) ) |}.
   intros.
-  do 4 (set (seq _ (2*_))).
-  stepl (Qabs ((q - q1) + (q0 - q2))).
-  2: { proofeq. ltac1:(refine (Qabs_wd _ _ _)). ring. }
-  stepl (Qabs (q - q1) + Qabs (q0 - q2)).
-  2: { auto using Qabs_triangle. }
+  do 4 (nameit (seq _ (2*_))).
+  stepl (Qabs ((xm - xn) + (ym - yn))).
+  2:{ proveeq. refine (Qabs_wd _ _ _). ring. }
+  stepl (Qabs (xm - xn) + Qabs (ym - yn)).
+  2:{ auto using Qabs_triangle. }
   assert _ by exact (reg x). assert _ by exact (reg y).
   stepl ((1 # 2 * m) + (1 # 2 * n) + ((1 # 2 * m) + (1 # 2 * n))).
-  2 : { exact (Qplus_le_compat _ _ _ _ (X _ _) (X0 _ _)). }
-  proofeq. unfold Qeq. simpl. lia.
+  2:{ exact (Qplus_le_compat _ _ _ _ (X _ _) (X0 _ _)). }
+  proveeq. unfold Qeq. simpl. lia.
 Defined.
 
 Infix "+" := Rplus : R_scope.
 
 Time Compute (1 + 3).
 
-Time Compute seq ((of_Q 1) + (of_Q 3))%R 10.
+Time Compute seq ((of_Q 1) + (of_Q 3))%R 10. (* 4 *)
 
 (* (2.4) Definition. Part (b) *) 
-#[refine] Definition Rmult (x y : R) : R := {| seq := (fun (n : positive) => (seq x (2*n*(Kp x))) * (seq y (2*n*(Kp x))) ) |}.
+#[refine] Definition Rmult (x y : R) : R := {| seq := (fun (n : positive) => (seq x (2*n*(Pos.max (Kp x) (Kp y)))) * (seq y (2*n*(Pos.max (Kp x) (Kp y)))) ) |}.
   intros.
-  do 4 (set (seq _ (2*_*_))).
+  remember (Pos.max (Kp x) (Kp y)) as k.
+  do 4 (nameit (seq _ (2*_*k))).
+  stepl (Qabs (xm*(ym - yn) + yn*(xm - xn))).
+  2:{ proveeq. refine (Qabs_wd _ _ _). lra. }
+  assert (Qabs xm <= (inject_P k)).
+  1:{ stepl (inject_P (Kp x)). 2:{ provelt. apply Kp_gt. }
+      rewrite <-Posle_Qle. rewrite Heqk. lia. }
+  assert (Qabs yn <= (inject_P k)).
+  1:{ stepl (inject_P (Kp y)). 2:{ provelt. apply Kp_gt. }
+      rewrite <-Posle_Qle. rewrite Heqk. lia. }
+  stepl (Qabs xm * Qabs (ym - yn) + Qabs yn * Qabs (xm - xn)).
+  2: { do 2 (rewrite <-Qabs_Qmult). apply Qabs_triangle. }
+  stepl ((inject_P k) * Qabs (ym - yn) + (inject_P k) * Qabs (xm - xn)).
+  2: { admit. }
 Admitted.
 

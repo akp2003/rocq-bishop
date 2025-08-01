@@ -7,3 +7,4 @@ CoqMakefile.conf
 *.aux
 .CoqMakefile.d
 .lia.cache
+.nra.cache
