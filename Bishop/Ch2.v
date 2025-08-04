@@ -1,6 +1,9 @@
 (* BEAWARE If you change the order of these two lines, your COQ will be fucked up! *)
 From Stdlib Require Import Unicode.Utf8 BinNat Lia Lra.
-From Stdlib Require Import QArith Qabs Psatz Zify Qround PArith.
+From Stdlib Require Import QArith Qabs Psatz Zify Qround.
+From Stdlib Require Import PArith Qminmax List.
+
+(* From parseque Require Import NEList. *)
 
 From Ltac2 Require Import Ltac2.
 From Ltac2 Require Import Ltac1.
@@ -26,8 +29,14 @@ Delimit Scope R_scope with R.
 (* (2.1) Definition. *)
 Structure R : Set := Rmake {
     seq : positive → Q;
-    reg (n m : positive) : Qabs (seq m - seq n) <= Qmake 1 m + Qmake 1 n
+    reg (n m : positive) : Qabs (seq m - seq n) <= (1 # m) + (1 # n)
   }.
+
+Lemma R_reg_no_Qabs (r:R) n m : (seq r m - seq r n) <= (1 # m) + (1 # n).
+Proof.
+  stepl (Qabs (seq r m - seq r n)).
+  apply (reg r). apply Qle_Qabs.
+Qed.
 
 Print R.
 
@@ -131,10 +140,10 @@ Proof.
   lia.
 Qed. *)
 
-Lemma Qmult_le_replace_nonneg a b c d (hd : 0 <= d) (hb : 0 <= a * b <= c) (had : d <= a) : (d * b <= c).
+Lemma Qmult_le_replace_nonneg a b c d (Hd : 0 <= d) (hb : 0 <= a * b <= c) (had : d <= a) : (d * b <= c).
 Proof.
   destruct (Q_dec a 0). destruct s. lra.
-  - assert _ by exact (Qmult_le_compat_nonneg (a * b) c d a hb (conj hd had)).
+  - assert _ by exact (Qmult_le_compat_nonneg (a * b) c d a hb (conj Hd had)).
     rewrite (Qmult_comm c a) in X. rewrite <-Qmult_assoc in X.
     assert _ by exact (proj1 (Qmult_le_l (b * d) c a q) X).
     lra.
@@ -301,7 +310,7 @@ Qed.
 Print Assumptions K_gt.
 
 (* (2.4) Definition. Part (a) *)
-#[refine] Definition Rplus (x y : R) : R := {| seq := (fun (n : positive) => (seq x (2*n)) + (seq y (2*n)) ) |}.
+#[refine] Definition Rplus (x y : R) : R := {| seq := (fun n => (seq x (2*n)) + (seq y (2*n)) ) |}.
   intros.
   do 4 (nameit (seq _ (2*_))).
   stepl (Qabs ((xm - xn) + (ym - yn))).
@@ -321,7 +330,7 @@ Time Compute (1 + 3).
 Time Compute seq ((of_Q 1) + (of_Q 3))%R 10. (* 4 *)
 
 (* (2.4) Definition. Part (b) *) 
-#[refine] Definition Rmult (x y : R) : R := {| seq := (fun (n : positive) => (seq x (2*n*(Pos.max (Kp x) (Kp y)))) * (seq y (2*n*(Pos.max (Kp x) (Kp y)))) ) |}.
+#[refine] Definition Rmult (x y : R) : R := {| seq := (fun n => (seq x (2*n*(Pos.max (Kp x) (Kp y)))) * (seq y (2*n*(Pos.max (Kp x) (Kp y)))) ) |}.
   intros.
   remember (Pos.max (Kp x) (Kp y)) as k.
   do 4 (nameit (seq _ (2*_*k))).
@@ -336,15 +345,98 @@ Time Compute seq ((of_Q 1) + (of_Q 3))%R 10. (* 4 *)
   stepl (Qabs xm * Qabs (ym - yn) + Qabs yn * Qabs (xm - xn)).
   2: { do 2 (rewrite <-Qabs_Qmult). apply Qabs_triangle. }
   stepl ((inject_P k) * Qabs (ym - yn) + (inject_P k) * Qabs (xm - xn)).
-  2: { pickaxe [1] [1]. pickaxe [1] [1]. exact H. lra.
-  pickaxe [1] [1]. exact H0. lra. }
+  2: { pickaxe [1] [1]. pickaxe [1] [1]. exact H. 
+  pickaxe [1] [1]. exact H0. }
   stepl ((inject_P k) * ((1 # 2*m*k) + (1 # 2*n*k)) + (inject_P k) * ((1 # 2*m*k) + (1 # 2*n*k))).
-  2: { pickaxe [1] [1]. pickaxe [1] [1]. proveeq. reflexivity.
-  exact (reg y (2*n*k) (2*m*k)). pickaxe [1] [1]. proveeq;reflexivity. exact (reg x (2*n*k) (2*m*k)). }
-  proveeq. unfold inject_P. unfold inject_Z. unfold Qeq. simpl. lia.
+  2: { pickaxe [1] [1]. pickaxe [1] [1].
+  exact (reg y (2*n*k) (2*m*k)). pickaxe [1] [1]. exact (reg x (2*n*k) (2*m*k)). }
+  proveeq. unfold inject_P,inject_Z,Qeq. simpl. lia.
 Defined.
 
 Infix "*" := Rmult : R_scope.
 
 Time Compute seq ((of_Q 40) * (of_Q 3))%R 10. (* 120 *)
 
+Lemma Qminus_cancel_both a b c : a - c == b - c <-> a == b.
+Proof.
+  lra.
+Qed.
+
+Module Q.
+
+Fixpoint list_max (l : list Q) := 
+  match l with
+  | nil => None
+  | x :: xs => 
+    match (list_max xs) with 
+    | Some q => Some (Qmax x q)
+    | None => Some x
+    end
+  end.
+
+(* Definition NEList_max (l : NEList Q) := 
+  match l with
+  | MkNEList x xs => 
+    match (list_max xs) with
+    | Some q => Qmax x q
+    | None => x
+    end
+  end. *)
+
+(* Lemma list_max_dec (l : list Q) : fold_right or (list_max l = None) (map (fun x => list_max l = Some x) l).
+Proof.
+  induction l.
+  easy.
+ *)
+
+End Q.
+
+Lemma Some_eq_Some_iff {A : Type} (x y : A) : Some x = Some y <-> x = y.
+Proof.
+  split.
+  + inversion 1. reflexivity.
+  + intros ->. reflexivity.
+Qed.
+
+Lemma Qabs_max_le a b c d : (Qmax c d < Qmax a b) -> (Qmax a b == a) -> Qabs (Qmax a b - Qmax c d) <= a - c.
+Proof.
+  intros. rewrite H0.
+  stepl (a - Qmax c d).
+  2 : { proveeq. refine (Qabs_pos _ _). unfold Qminus. rewrite <-Qle_minus_iff.
+  provelt. rewrite <-H0. exact H. }
+  pickaxe [1] [1]. refine (Qopp_le_compat _ _ _).
+  apply Q.le_max_l.
+Qed.
+
+(* (2.4) Definition. Part (c) *) 
+#[refine] Definition Rmax (x y : R) : R := {| seq := (fun n => Qmax (seq x n) (seq y n)) |}.
+  intros.
+  do 4 (nameit (seq _ _)).
+  destruct (Qlt_le_dec (Qmax xm ym) (Qmax xn yn)).
+  - destruct (Q.max_dec xn yn).
+    + stepl (xn - xm). rewrite Qplus_comm. apply R_reg_no_Qabs.
+      rewrite Qabs_Qminus. apply (Qabs_max_le _ _ _ _ q q0).
+    + stepl (yn - ym). rewrite Qplus_comm. apply R_reg_no_Qabs.
+      rewrite Q.max_comm in *. rewrite (Q.max_comm xn yn) in *.
+      rewrite Qabs_Qminus. apply (Qabs_max_le _ _ _ _ q q0).
+  - destruct (Qle_lt_or_eq _ _ q).
+    destruct (Q.max_dec xm ym).
+    + stepl (xm - xn). apply R_reg_no_Qabs.
+      apply (Qabs_max_le _ _ _ _ H q0).
+    + stepl (ym - yn). apply R_reg_no_Qabs.
+      rewrite (Q.max_comm xm ym) in *. rewrite Q.max_comm in H.
+      rewrite (Q.max_comm xn yn). apply (Qabs_max_le _ _ _ _ H q0).
+    + rewrite H. rewrite Qeq_cancel_r. easy.
+Defined. 
+
+Print Assumptions Rmax.
+
+Time Compute seq (Rmax (of_Q 1) (of_Q 200)) 20. (* 200 *)
+(* Beautiful *)
+
+(* (2.4) Definition. Part (d) *) 
+#[refine] Definition Ropp (x: R) : R := {| seq := (fun n => - seq x n) |}.
+  intros. unfold Qminus. rewrite Qopp_opp.
+  rewrite (Qplus_comm (1 # m) (1 # n)).
+  rewrite Qplus_comm. apply reg.
+Defined.

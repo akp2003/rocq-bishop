@@ -223,11 +223,12 @@ Ltac2 Eval join_constr (sep_constr ['(-1+(1*4+(2313+2^3)))] 'Qplus) 'Qplus.
 
 (* TODO : This tactic is a little slow. *)
 Ltac2 pickaxe (ll : int list) (rl : int list) :=
+  try (unfold Qminus);try (unfold Qminus);
   (* List start with 1 *)
   let st := 1 in
   let (sep,zero) := match! goal with 
-  | [|- _ (_ + _) (_ + _)] => (unfold Qminus);('Qplus,'(0))
-  | [|- _ (_ * _) (_ * _)] => (unfold Qdiv);('Qmult,'(1))
+  | [|- _ (_ + _) (_ + _)] => ('Qplus,'(0))
+  | [|- _ (_ * _) (_ * _)] => ('Qmult,'(1))
   | [|- _] => Control.throw Match_failure
   end in 
   let (lc,rc) := match! goal with 
@@ -249,10 +250,11 @@ Ltac2 pickaxe (ll : int list) (rl : int list) :=
   try (rewrite &internalH_for_pickaxe_l);
   Std.clear [@internalH_for_pickaxe_l;@internalH_for_pickaxe_r]; 
   match! goal with
-  | [|- (_ + _) <= (_ + _)] => refine (Qplus_le_compat $lsl $rsl $lsr $rsr _ _)
+  | [|- (_ + _) <= (_ + _)] => refine (Qplus_le_compat $lsl $rsl $lsr $rsr _ _); try (proveeq; ring)
   | [|- (_ * _) <= (_ * _)] =>
   refine (Qmult_le_compat_nonneg $lsl $rsl $lsr $rsr _ _);
-  constructor; try (apply Qabs_nonneg); try (provelt;apply inject_P_pos)
+  constructor; try (apply Qabs_nonneg); try (provelt;apply inject_P_pos);
+  try (proveeq; ring)
   | [|- _] => Control.throw Match_failure
   end.
 
