@@ -14,14 +14,15 @@ From Bishop Require Import Tactics.
 (* From Stdlib Require Import All. 
    Search Qle. 
   *)
-  
+
 (* Why Didn't they prove this! *)
 Lemma Qeq_cancel_r a : a - a == 0. Proof. ring. Qed. 
 Lemma Qeq_cancel_l a : -a + a == 0. Proof. ring. Qed.
-Lemma Qminus_dist a b : - (a + b) == (-a - b). Proof. ring. Qed.
+Lemma Qopp_dist a b : - (a + b) == (-a - b). Proof. ring. Qed.
 Lemma Qminus_assoc x y z : x + (- y + z) == x - y + z. Proof. ring. Qed.
 Lemma Qmake_le_one p : 1 # p <= 1. Proof. unfold Qle. simpl. lia. Qed.
-Lemma Qmake_le_iff_Posle p q : 1 # p <= 1 # q <-> (q <= p)%positive. Proof. unfold Qle. simpl. lia. Qed.
+Lemma Qmake_1_le_iff_Posle p q : 1 # p <= 1 # q <-> (q <= p)%positive. Proof. unfold Qle. simpl. lia. Qed.
+Lemma Qmake_le_iff_Posle p q z (Hz : (0 < z)%Z) : z # p <= z # q <-> (q <= p)%positive. Proof. unfold Qle. simpl. nia. Qed.
   (* At least COQ is constructive! |=[_](|< [_] |_34N 4 ! *)
 
 
@@ -47,12 +48,12 @@ Qed.
 
 Lemma R_seq_le_seq_of_le x n m N (h : (N <= n)%positive) : (seq x m) - ((1 # m) + (1 # N)) <= seq x n <= (seq x m) + ((1 # m) + (1 # N)).
 Proof.
-  unfold Qminus. rewrite Qminus_dist.
+  unfold Qminus. rewrite Qopp_dist.
   constructor.
   stepr ((seq x m) + (- (1 # m) - (1 # n))).
   pickaxe [3] [3].
   unfold Qle. simpl. lia.
-  rewrite <-Qminus_dist.
+  rewrite <-Qopp_dist.
   apply R_seq_le_seq.
   stepl ((seq x m) +  ((1 # m) + (1 # n))).
   pickaxe [3] [3].
@@ -91,6 +92,31 @@ Proof.
   easy.
 Qed.
 
+Lemma Req_with_diff_index x y: (x ≖ y) -> ∀n m, Qabs ((seq x n) - (seq y m)) <= (3 # n) + (1 # m).
+Proof.
+  intros.
+  assert ((3 # n) == (1 # n) + (2 # n)).
+  rewrite Qinv_plus_distr. simpl. reflexivity.
+  rewrite Qabs_diff_Qle_condition.
+  constructor.
+  - stepr ((seq y n) - ((1 # n) + (1 # m))).
+    2 : { apply (proj1 (R_seq_le_seq _ m n)). }
+    rewrite <-(Qplus_le_l _ _ (- (seq y n))).
+    rewrite <-(Qplus_le_l _ _ ((3 # n) + (1 # m))).
+    pickaxe [1;3] [2;4;5]. stepr (2 # n).
+    stepl (Qabs (seq x n + - seq y n)).
+    apply H. apply Qle_Qabs.
+    rewrite H0. lra.
+  - stepl ((seq y n) + ((1 # n) + (1 # m))).
+    2 : { apply (proj2 (R_seq_le_seq _ m n)). }
+    rewrite <-(Qplus_le_l _ _ (- (seq x n))).
+    rewrite <-(Qplus_le_l _ _ (-((1 # n) + (1 # m)))).
+    pickaxe [1;4] [2;3;5;6]. stepr (2 # n).
+    stepl (Qabs (seq y n - seq x n)).
+    rewrite Qabs_Qminus.
+    apply H. apply Qle_Qabs.
+    rewrite H0. lra.
+Qed.
 
 (** * Properties of equality. *)
 (* (2.2) Proposition. (i) *)
@@ -280,6 +306,12 @@ Proof.
 Qed.
 
 Print Assumptions Req_trans.
+
+#[global]
+Add Relation R Req 
+  reflexivity proved by Req_refl
+  symmetry proved by Req_sym
+  transitivity proved by Req_trans as Req_rel.
 
 (* canonical bound *)
 Compute Qceiling (331 # 20).
@@ -509,10 +541,14 @@ Proof.
   simpl. apply Qplus_comm.
 Qed.
 
+Lemma Rmult_seq_comm x y n : seq (x*y)%R n == seq (y*x)%R n.
+Proof.
+  simpl. rewrite Pos.max_comm. ring.
+Qed.
+
 Proposition Rmult_comm x y : (x * y ≖ y * x)%R.
 Proof.
-  refine (R_eq_seq _ _ _). intros.
-  simpl. rewrite Pos.max_comm. apply Qmult_comm.
+  refine (R_eq_seq _ _ _). apply Rmult_seq_comm.
 Qed.
 
 (* (2.6) Proposition. (b) *)
@@ -574,8 +610,7 @@ Proof.
   do 3 (nameit (seq _ ?[ign]) S).
   do 3 (nameit (seq _ ?[ign]) S2).
   rewrite Qmult_assoc,Qminus_mult_3.
-  stepl (Qabs (Sx * Sy * (Sz - S2z)) + Qabs (Sx * S2z * (Sy - S2y)) + Qabs (S2y * S2z * (Sx - S2x)) ).
-  2 : { apply Qabs_triangle_3. }
+  refine (Qle_stepl _ _ _ _ (Qabs_triangle_3 _ _ _)).
   remember (6 * j * (Kp x) * (Kp y) * (Kp z))%positive as Nj.
   remember (fun x => inject_P (Kp x)) as Kq.
   remember (fun x y => 2 # (6 * j * (Kp x) * (Kp y))) as Aj.
@@ -598,26 +633,26 @@ Proof.
     Local Ltac2 tac2 (n1 : int) (n2 : int) := 
       do n1 (rewrite Qmult_frac_r); pickaxe [1] [1];
       Control.focus 1 1 (fun () => pickaxe [n2] [1]);
-      Control.focus 1 1 (fun () => rewrite Qmake_le_iff_Posle;
+      Control.focus 1 1 (fun () => rewrite Qmake_1_le_iff_Posle;
         stepr &Nj; rewrite &HeqNj;
         nia; lia);
       Control.focus 1 1 (fun () => apply Qmake_le_one).
     - tac1.
       refine (Qle_stepl _ _ _ _ (reg z _ _)).
       tac2 6 2. 
-      pickaxe [3] [1]. rewrite Qmake_le_iff_Posle.
+      pickaxe [3] [1]. rewrite Qmake_1_le_iff_Posle.
       stepr Nj. rewrite HeqNj.
       nia. lia. apply Qmake_le_one.
     - tac1.
       refine (Qle_stepl _ _ _ _ (reg y _ _)).
       tac2 8 3.
-      pickaxe [3] [1]. rewrite Qmake_le_iff_Posle.
+      pickaxe [3] [1]. rewrite Qmake_1_le_iff_Posle.
       stepr Nj. rewrite HeqNj.
       nia. lia. apply Qmake_le_one.
     - tac1.
       refine (Qle_stepl _ _ _ _ (reg x _ _)).
       tac2 6 3.
-      pickaxe [2] [1]. rewrite Qmake_le_iff_Posle.
+      pickaxe [2] [1]. rewrite Qmake_1_le_iff_Posle.
       stepr Nj. rewrite HeqNj.
       nia. lia. apply Qmake_le_one.
     }
@@ -631,5 +666,184 @@ Qed.
 
 Print Assumptions Rmult_assoc.
 
+Lemma Qabs_seq_le {nx x y n m A} : (2*A*(Kp x)<=n)%positive -> (2*A*(Kp x)<=m)%positive -> Qabs ((seq x nx) * ((seq y n) - (seq y m))) <= (1 # A).
+Proof.
+  intros. rewrite Qabs_Qmult.
+  stepl (inject_P (Kp x) * ((1 # 2*A*(Kp x)) + (1 # 2*A*(Kp x)))).
+  2 : { 
+    pickaxe [1] [1].
+    provelt. apply Kp_gt.
+    stepl ((1 # n) + (1 # m)).
+    2 : { apply reg. }
+    pickaxe [1] [1].
+    all : rewrite Qmake_1_le_iff_Posle; easy. 
+   }
+  unfold Qle. simpl. lia.
+Qed.
 
+(* (2.6) Proposition. (c) *)
+Proposition Rmult_plus_distr_r x y z : (x * (y + z) ≖ x * y + x * z)%R.
+Proof.
+  rewrite Req_iff_exists. intros.
+  do 2 (simpl head seq).
+  nameit (_ + _)%R p.
+  do 3 (nameit (Pos.max (Kp _) (Kp _)) m).
+  exists (2 * (4 * j) * Kp x * Kp y * Kp z)%positive. intros.
+  do 3 (nameit (seq _ ?[ign]) S).
+  do 4 (nameit (seq _ (2 * (2 * n) * _)) S2).
+  stepl (Qabs ((Sx * Sy - S2xmxy * S2ymxy) + (Sx * Sz - S2xmxz * S2zmxz))).
+  2: { proveeq. refine (Qabs_wd _ _ _). ring. }
+  refine (Qle_stepl _ _ _ _ (Qabs_triangle _ _)).
+  Check reg (x*y)%R.
+  do 2 (rewrite Qminus_mult_2).
+  stepr ((1 # (4*j)) + (1 # (4*j)) + (1 # (4*j)) + (1 # (4*j))).
+  pickaxe [1] [1;2].
+  1,2 : refine (Qle_stepl _ _ _ _ (Qabs_triangle _ _)).
+  Local Ltac2 Notation "tac1" c1(constr) c2(constr) := 
+      stepr (&n)%positive;
+      Control.focus 1 1 (fun () =>
+      refine (POrderedType.Positive_as_DT.le_trans _ _ _ _ &H);
+      match! goal with 
+      [|- (?t <= _)%positive] => stepr ((Kp $c1 * Kp $c2) * $t)%positive
+      end;
+      Control.focus 1 1 (fun () => apply PosExtra.Pos_le_multiple);
+      Control.focus 1 1 (fun () => lia)
+      ); nia.
+  - pickaxe [1] [1].
+    refine (Qabs_seq_le _ _).
+    tac1 y z. tac1 y z.
+    refine (Qabs_seq_le _ _).
+    tac1 x z. tac1 x z.
+  - pickaxe [1] [1].
+    refine (Qabs_seq_le _ _).
+    tac1 y z. tac1 y z.
+    refine (Qabs_seq_le _ _).
+    tac1 x y. tac1 x y.
+  - unfold Qle. simpl. lia.
+Qed.  
+  
+(* (2.6) Proposition. (d) *)
+Proposition Rplus_0_l x : ((of_Q 0) + x)%R ≖ x.
+Proof.
+  unfold Req. simpl seq. intros.
+  rewrite Qplus_0_l.
+  stepl ((1 # (n~0)) + (1 # n)).
+  unfold Qle. simpl. lia.
+  apply reg.
+Qed.
+
+Proposition Rmult_1_l x : ((of_Q 1) * x)%R ≖ x.
+Proof.
+  unfold Req. simpl seq. intros.
+  rewrite Qmult_1_l.
+  stepl ((1 # ((n * Pos.max (Kp (of_Q 1)) (Kp x))~0)) + (1 # n)).
+  stepr ((1 # n) + (1 # n)).
+  pickaxe [1] [1].
+  rewrite Qmake_1_le_iff_Posle. nia.
+  unfold Qle. simpl. lia.
+  apply reg.
+Qed.
+
+(* (2.6) Proposition. (e) *)
+Lemma Rplus_opp_r x : (x + - x ≖ (of_Q 0))%R.
+Proof.
+  unfold Req. do 2 (simpl head seq).
+  intros. unfold Qabs,Qle. simpl. lia.
+Qed.
+
+#[global]
+Add Morphism Rplus 
+  with signature Req ==> Req ==> Req as Rplus_mor.
+Proof.
+  unfold Req. intros.
+  simpl head seq.
+  do 4 (nameit (seq _ (2 * n)) s).
+  stepl (Qabs ((sx - sy) + (sx0 - sy0))).
+  2 : { proveeq. refine (Qabs_wd _ _ _). ring. }
+  refine (Qle_stepl _ _ _ _ (Qabs_triangle _ _)).
+  stepr ((2 # (2 * n)) + (2 # (2 * n))).
+  2 : { unfold Qle. simpl. lia. }
+  pickaxe [1] [1].
+  apply H. apply H0.
+Qed.
+  
+#[global]
+Add Morphism Rmult 
+  with signature Req ==> Req ==> Req as Rmult_mor.
+Proof.
+  intros. rewrite Req_iff_exists. intros.
+  exists (Kp y0 * 3 * 4 * j * Kp x )%positive. intros.
+  simpl head seq.
+  do 2 (nameit (2 * n * Pos.max (Kp _) (Kp _))%positive m).
+  do 4 (nameit (seq _ ?[ign]) s).
+  rewrite Qminus_mult_2.
+  refine (Qle_stepl _ _ _ _ (Qabs_triangle _ _)).
+  do 2 (rewrite Qabs_Qmult).
+  stepr ((1 # (2 * j)) + (1 # (2 * j))).
+  2 : { unfold Qle. simpl. lia. }
+  pickaxe [1] [1].
+  (* Write a tactic to avoid repetition! *)
+  stepl (inject_P (Kp x) * ((3 # 12*j*(Kp x)) + (1 # 4*j*(Kp x)))).
+  2 : { 
+    pickaxe [1] [1].
+    provelt. apply Kp_gt.
+    stepl ((3 # mxx0) + (1 # myy0)).
+    2 : { apply (Req_with_diff_index _ _ H0). }
+    pickaxe [1] [1].
+    rewrite Qmake_le_iff_Posle.
+    stepr n. nia. nia.
+    lia.
+    rewrite Qmake_1_le_iff_Posle.
+    stepr n.
+    refine (Pos.le_trans _ _ _ _ H1).
+    nia. nia.
+   }
+  unfold Qle. simpl. lia.
+  stepl (inject_P (Kp y0) * ((3 # 12*j*(Kp y0)) + (1 # 4*j*(Kp y0)))).
+  2 : { 
+    pickaxe [1] [1].
+    provelt. apply Kp_gt.
+    stepl ((3 # mxx0) + (1 # myy0)).
+    2 : { apply (Req_with_diff_index _ _ H). }
+    pickaxe [1] [1].
+    rewrite Qmake_le_iff_Posle.
+    stepr n. nia. nia.
+    lia.
+    rewrite Qmake_1_le_iff_Posle.
+    stepr n.
+    refine (Pos.le_trans _ _ _ _ H1).
+    nia. nia.
+   }
+  unfold Qle. simpl. lia.
+Qed.
+
+#[global]
+Add Morphism Ropp
+  with signature Req ==> Req as Ropp_mor.
+Proof.
+  intros. unfold Req. intros.
+  simpl head seq. unfold Qminus. rewrite Qopp_opp.
+  rewrite Qplus_comm.
+  symmetry in H.
+  exact (H n).
+Qed.
+
+Definition Rsrt : ring_theory (of_Q 0) (of_Q 1) Rplus Rmult Rminus Ropp Req.
+Proof.
+  constructor.
+  - exact Rplus_0_l.
+  - exact Rplus_comm.
+  - symmetry. apply Rplus_assoc.
+  - exact Rmult_1_l.
+  - exact Rmult_comm.
+  - symmetry. apply Rmult_assoc.
+  - intros. rewrite (Rmult_comm). rewrite (Rmult_comm x z). 
+    rewrite (Rmult_comm y z). apply Rmult_plus_distr_r.
+  - reflexivity.
+  - exact Rplus_opp_r.
+Qed.
+
+Add Ring Rring : Rsrt.
+
+(* It feels like enrolling your child in a school! *)
 
