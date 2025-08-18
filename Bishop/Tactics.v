@@ -1,8 +1,11 @@
-From Ltac2 Require Import Ltac2 List String Ltac1 Rewrite.
+From Ltac2 Require Import Ltac2 List String Ltac1.
 From Ltac2 Require Import Constr Option Pattern Printf Bool.
 
 From Stdlib Require Import Unicode.Utf8 Lia Lra.
 From Stdlib Require Import QArith Psatz Qabs.
+
+From AAC_tactics Require Import AAC.
+From AAC_tactics Require Instances.
 
 Ltac2 Notation "ring" := ltac1:(ring).
 Ltac2 Notation "field" := ltac1:(field).
@@ -14,6 +17,7 @@ Ltac2 Notation "nia" := ltac1:(nia).
 Ltac2 Notation "stepl" c(constr) := ltac1:(c|-stepl c) (Ltac1.of_constr c).
 Ltac2 Notation "stepr" c(constr) := ltac1:(c|-stepr c) (Ltac1.of_constr c).
 Ltac2 Notation "refine" c(thunk(open_constr)) := Control.refine c.
+Ltac2 Notation "rf" := ltac1:(aac_reflexivity).
 
 (* Why don't they add this to COQ!! *)
 Lemma Qle_stepl : ∀ x y z : Q, x <= y → z <= x → z <= y.
