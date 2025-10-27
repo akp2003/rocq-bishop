@@ -175,7 +175,7 @@ Ltac2 Notation "nameit" p(thunk(pose)) s(opt(ident)) cl(opt(clause)) :=
   let (idnt,cnstr,_) := List.last (Control.hyps ()) in
   let c1 := (Option.get cnstr) in
   let c2 := (snd (p ())) in
-  let l := (List.map (fun (x,_) => constr_to_string x) (filter (fun (_,y) => neg (String.equal (sub (constr_to_string y) 1 1) "i")) (Constr.matches_list [c1] [c2]))) in
+  let l := (List.map (fun (x,_) => constr_to_string x) (List.filter (fun (_,y) => neg (String.equal (sub (constr_to_string y) 1 1) "i")) (Constr.matches_list [c1] [c2]))) in
   let begin := match s with | Some i => (Ident.to_string i) | None => "" end in
   let st := (String.app begin (String.concat "" l)) in
   printf "Trying the name %s" st;

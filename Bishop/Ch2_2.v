@@ -135,6 +135,7 @@ Proof.
   intros. rewrite H. exact (Req_refl (of_Q b)).
 Qed. 
 
+(* I use sig instead of ∃ *)
 Definition exists_of_Req_def x y : x ≖ y -> ∀j, { N:positive | ∀n, (N <= n)%positive -> Qabs (seq x n - seq y n) <= Qmake 1 j}.
 Proof. 
   intros. exists (2*j)%positive. intros. unfold Req in H.
@@ -149,7 +150,6 @@ Defined.
 
 (* (2.3) Lemma. *)
 (* Hint : I guess (∀n j, ∃N) is different from (∀j ∃N, ∀n) *)
-(* I use sig instead of ∃ *)
 Lemma Req_iff_exists x y : x ≖ y <-> ∀j, ∃N, ∀n, (N <= n)%positive -> Qabs (seq x n - seq y n) <= Qmake 1 j .
 Proof.
   constructor.
@@ -343,6 +343,10 @@ Print Assumptions Rmax.
 Time Compute seq (Rmax (of_Q 1) (of_Q 200)) 20. (* 200 *)
 (* Beautiful *)
 
+Notation "Rmax( x , y , .. , z )" := (Rmax .. (Rmax x y) .. z) : R_scope.
+
+Compute seq (Rmax( (of_Q 1), (of_Q 3) , (of_Q 2242)))%R 3.
+
 (* (2.4) Definition. Part (d) *) 
 #[refine] Definition Ropp (x: R) : R := {| seq := (fun n => - seq x n) |}.
   intros. unfold Qminus. rewrite Qopp_opp.
@@ -362,6 +366,8 @@ Check of_Q. (* use this *)
 Definition Rabs (x : R) := (Rmax x (-x))%R.
 
 Definition Rmin (x y : R) := (- Rmax (-x) (-y))%R.
+
+Notation "Rmin( x , y , .. , z )" := (Rmin .. (Rmin x y) .. z) : R_scope.
 
 (* (2.6) Proposition. (a) *)
 Proposition Rplus_comm x y : (x + y ≖ y + x)%R.
@@ -643,16 +649,36 @@ Add Ring Rring : Rsrt.
 
 (* It feels like enrolling your child in a school! *)
 
+Lemma Kp_opp x : Kp x = Kp (-x)%R.
+Proof.
+  unfold Kp.
+  rewrite (Z2Pos.inj_iff _ _ (K_pos x) (K_pos (Ropp x))).
+  unfold K,Qround. simpl seq.
+  rewrite (Qabs_opp (seq x 1)).
+  reflexivity.
+Qed.
+
+Lemma Kp_abs x : Kp x = Kp (Rabs x).
+Proof.
+  unfold Kp.
+  unfold K,Qround. simpl seq.
+  rewrite Qmax_eq_Qabs_self.
+  rewrite (Qabs_Qabs (seq x 1)).
+  reflexivity.
+Qed.
+
 (* (2.6) Proposition. (f) *)
 Proposition Rabs_Rmult x y : (Rabs (x * y) ≖ (Rabs x) * (Rabs y))%R.
 Proof.
-  unfold Rabs,Req. do 3 (simpl head seq).
+  unfold Req. do 3 (simpl head seq).
   intros.
-  do 2 (nameit (Pos.max (Kp _) (Kp _)) m).
-  do 2 (nameit (seq _ ?[ign]) s).
-  do 2 (nameit (seq _ _) s).
+  do 2 (rewrite <-Kp_abs).
   do 3 (rewrite Qmax_eq_Qabs_self).
-Admitted.
+  rewrite Qabs_Qmult.
+  rewrite Qeq_cancel_r.
+  easy.
+  (* Beautiful *)
+Qed.
   
 (* (2.6) Proposition. (g) *)
 Proposition of_Q_Rplus a b : of_Q (a + b) ≖ (of_Q a + of_Q b)%R.
@@ -672,6 +698,51 @@ Proof.
   refine (R_eq_seq _ _ _).
   intros. simpl. reflexivity.
 Qed.
+
+(* (2.7) Definition. *)
+Definition IsPos x := { n | (1 # n) < (seq x n) }.
+
+Definition IsNN x := { n | (-1 # n) <= (seq x n) }.
+
+(* (2.8) Lemma. Part 1 *)
+Lemma IsPos_iff x : IsPos x <=> {N | ∀m, (N <= m)%positive -> ((1 # N) <= seq x m) }.
+Proof.
+  split; intros.
+  - destruct H as [n H].
+    remember (((seq x n - (1 # n))/2)) as M.
+    exists (Qden M). intros.
+    stepl (seq x n - Qabs (seq x m - seq x n)).
+    destruct (Qlt_le_dec 0 ((seq x m) - (seq x n))).
+    erewrite (Qabs_pos). lra. lra.
+    erewrite (Qabs_neg). lra. lra.
+    stepl (seq x n - (1 # n) - (1 # m)).
+    ltac1:(epose proof reg x n m). lra.
+    stepl (seq x n - (1 # n) - (1 # (Qden M))).
+    apply Qmake_1_le_iff_Posle in H0. lra.
+    stepl (2*(1 # (Qden M)) - (1 # (Qden M))).
+    pickaxe [1] [1;2].
+    rewrite Qmult_comm.
+    refine (proj2 (Qle_shift_div_l_iff _ _ _ _) _).
+    easy. unfold Qminus in HeqM.
+    rewrite <-HeqM.
+    assert (0 < M). rewrite HeqM. 
+    refine (Qlt_shift_div_l _ _ _ _ _).
+    easy. nra.
+    unfold Qle. unfold Qlt in H1.
+    simpl in *.  
+    nia. lra.
+  - destruct H.
+    exists (x0+1)%positive.
+    specialize (q (x0 + 1)%positive).
+    assert (x0 <= x0 + 1)%positive by lia.
+    destruct (Qle_lt_or_eq _ _ (q H)).
+    + stepl (1 # x0).
+      exact H0.
+      easy.
+    + rewrite <-H0.
+      unfold Qlt. simpl.
+      lia.
+Defined.
 
 End R.
 

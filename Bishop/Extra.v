@@ -41,6 +41,12 @@ Proof.
     reflexivity.
 Qed.
 
+Lemma Qabs_Qabs a : Qabs (Qabs a) == Qabs a.
+Proof.
+  rewrite Qabs_pos. reflexivity.
+  apply Qabs_nonneg.
+Qed.
+
 (* Why didn't they add this to coq??? *)
 Lemma Qinv_le_contravar : forall a b : Q,
     0 < a → 0 < b → (a <= b <-> /b <= /a).
@@ -238,5 +244,49 @@ Proof.
   - rewrite <-(Qabs_pos x). easy. lra.
   - stepl 0. apply Qabs_nonneg. exact q.
 Qed.
+
+Infix "<=>" := (fun A B => prod (forall _ : A, B) (forall _ : B, A)) (at level 70, no associativity).
+
+Lemma Qmake_inject_P p : 1 # p = / (inject_P p).
+Proof.
+  auto.
+Qed.
+
+Lemma inject_P_to_pos_Qceiling q : q <= inject_P (Z.to_pos (Qceiling q)).
+Proof.
+  stepl (inject_Z (Qceiling q)).
+  unfold inject_P.
+  rewrite <-Zle_Qle.
+  lia.
+  apply Qle_ceiling.
+Qed.
+
+
+Lemma Qabs_dec q : (Qabs q == q) + (Qabs q == -q). 
+Proof.
+  destruct (Qlt_le_dec 0 q).
+  - left.
+    refine (Qabs_pos _ _).
+    lra.
+  - right.
+    refine (Qabs_neg _ _).
+    lra.
+Defined.
+
+Lemma Qle_shift_div_l_iff : forall a b c,
+ 0 < c -> a*c <= b <-> a <= b/c.
+Proof.
+  intros.
+  split.
+  - apply Qle_shift_div_l.
+    exact H.
+  - intro.
+    apply (Qmult_lt_0_le_reg_r _ _ _ (Qinv_lt_0_compat _ H)).
+    stepl a. easy.
+    proveeq. field.
+    lra.
+Qed.
+
+
 
 
