@@ -744,5 +744,11 @@ Proof.
       lia.
 Defined.
 
+(* (2.8) Lemma. Part 1 *)
+Lemma IsNN_iff x : IsNN x <=> ∀n, {N | ∀m, (N <= m)%positive -> ((- 1 # n) <= seq x m) }.
+Proof.
+  admit.
+Admitted.
+
 End R.
 

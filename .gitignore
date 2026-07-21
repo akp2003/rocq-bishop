@@ -9,3 +9,5 @@ CoqMakefile.conf
 .lia.cache
 .nra.cache
 .nia.cache
+.vscode
+.continue
