@@ -11,3 +11,6 @@ CoqMakefile.conf
 .nia.cache
 .vscode
 .continue
+.csdp.cache
+AGENTS.md
+opencode.json
