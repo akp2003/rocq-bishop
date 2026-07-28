@@ -702,7 +702,7 @@ Qed.
 (* (2.7) Definition. *)
 Definition IsPos x := { n | (1 # n) < (seq x n) }.
 
-Definition IsNN x := { n | (-1 # n) <= (seq x n) }.
+Definition IsNN x := ∀n,  (-1 # n) <= (seq x n).
 
 (* (2.8) Lemma. Part 1 *)
 Lemma IsPos_iff x : IsPos x <=> {N | ∀m, (N <= m)%positive -> ((1 # N) <= seq x m) }.
