@@ -745,10 +745,62 @@ Proof.
 Defined.
 
 (* (2.8) Lemma. Part 2 *)
-Lemma IsNN_iff x : IsNN x <=> ∀n, {N | ∀m, (N <= m)%positive -> ((- 1 # n) <= seq x m) }.
+Lemma IsNN_iff x : IsNN x <=> ∀n, {Nn | ∀m, (Nn <= m)%positive -> ((- 1 # n) <= seq x m) }.
 Proof.
-  admit.
-Admitted.
+  (* This proof is AI generated, (GPT 5.6 Sol at High) *)
+  (* Future of Formal Verification is going to be wonderful! *)
+  split.
+  - intros Hnn n.
+    exists n.
+    intros m Hnm.
+    specialize (Hnn m).
+    assert (Hrecip : (-1 # n) <= (-1 # m)).
+      unfold Qle. simpl. lia.
+    lra.
+  - intros Heventual n.
+    destruct (Qlt_le_dec (seq x n) (-1 # n)) as [Hbad | Hgood].
+    + remember (((-1 # n) - seq x n)/2) as M.
+      assert (HMpos : 0 < M).
+        rewrite HeqM.
+        refine (Qlt_shift_div_l _ _ _ _ _).
+        easy.
+        lra.
+      destruct (Heventual (Qden M)) as [Nn HN].
+      remember (Nn + (Qden M))%positive as m.
+      assert (HNm : (Nn <= m)%positive) by lia.
+      specialize (HN m).
+      specialize (HN HNm).
+      assert (Hden_m : (Qden M < m)%positive) by lia.
+      assert (Hrecip : (1 # m) < (1 # (Qden M))).
+        unfold Qlt. simpl. lia.
+      assert (Hden_M : (1 # (Qden M)) <= M).
+        unfold Qle. unfold Qlt in HMpos.
+        simpl in HMpos.
+        simpl.
+        nia.
+      destruct (R_seq_le_seq x n m) as [Hreg _].
+      apply False_ind.
+      assert (Hopp : (-1 # (Qden M)) == -(1 # (Qden M))).
+        unfold Qeq. simpl. ring.
+      rewrite Hopp in HN.
+      assert (Hstrict : (-2*M - (1 # n)) < seq x n) by lra.
+      assert (Htwice : 2*M == ((-1 # n) - seq x n)).
+        rewrite HeqM.
+        apply Qmult_div_r.
+        intro Htwo.
+        unfold Qeq in Htwo. simpl in Htwo. lia.
+      assert (Hopp_n : (-1 # n) == -(1 # n)).
+        unfold Qeq. simpl. ring.
+      rewrite Hopp_n in Htwice.
+      assert (Heqseq : (-2*M - (1 # n)) == seq x n).
+        apply (Qeq_trans _ (-(2*M) - (1 # n)) _).
+        ring.
+        rewrite Htwice.
+        ring.
+      rewrite Heqseq in Hstrict.
+      apply (Qlt_irrefl (seq x n) Hstrict).
+    + exact Hgood.
+Defined.
 
 End R.
 
