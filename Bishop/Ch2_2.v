@@ -802,5 +802,118 @@ Proof.
     + exact Hgood.
 Defined.
 
+(* The following proofs are AI generated, (Anthropic Opus 5) *)
+(* The theorems are written by a human *)
+
+Lemma IsPos_of_Req x y : x ≖ y -> IsPos x -> IsPos y.
+Proof.
+  intros Hxy Hx.
+  destruct (IsPos_iff x) as [Hfwd _].
+  destruct (Hfwd Hx) as [N' HN].
+  exists (4 * N')%positive.
+  assert (HleN : (N' <= 4 * N')%positive) by lia.
+  specialize (HN (4 * N')%positive HleN).
+  assert (Hd : seq x (4 * N')%positive - seq y (4 * N')%positive <= (2 # 4 * N')).
+  { refine (Qle_trans _ _ _ (Qle_Qabs _) (Hxy (4 * N')%positive)). }
+  assert (Hq : (1 # 4 * N') + (2 # 4 * N') < (1 # N')).
+  { rewrite Qinv_plus_distr. unfold Qlt. simpl. lia. }
+  lra.
+Defined.
+
+Lemma IsNN_of_Req x y : x ≖ y -> IsNN x -> IsNN y.
+Proof.
+  intros Hxy Hx.
+  destruct (IsNN_iff x) as [Hxf _].
+  destruct (IsNN_iff y) as [_ Hyb].
+  apply Hyb. intro n.
+  destruct (Hxf Hx (2 * n)%positive) as [N' HN].
+  exists (N' + 4 * n)%positive. intros m Hm.
+  assert (HNm : (N' <= m)%positive) by lia.
+  specialize (HN m HNm).
+  assert (Hd : seq x m - seq y m <= (2 # m)).
+  { refine (Qle_trans _ _ _ (Qle_Qabs _) (Hxy m)). }
+  assert (Hq : (2 # m) <= (1 # 2 * n)) by (unfold Qle; simpl; lia).
+  assert (Hopp : ∀ k : positive, (-1 # k) == - (1 # k))
+    by (intros; unfold Qeq; simpl; ring).
+  rewrite (Hopp n). rewrite (Hopp (2 * n)%positive) in HN.
+  assert (Hhalf : (1 # 2 * n) + (1 # 2 * n) == (1 # n)) by (unfold Qeq; simpl; lia).
+  lra.
+Defined.
+
+(* First Corollary of Lemma (2.8) *)
+Corollary Req_IsPos_iff x y : x ≖ y → IsPos x <=> IsPos y. 
+Proof.
+  intro H. split.
+  - exact (IsPos_of_Req x y H).
+  - exact (IsPos_of_Req y x (Req_sym _ _ H)).
+Defined.
+
+(* Second Corollary of Lemma (2.8) *)
+Corollary Req_IsNN_iff x y : x ≖ y → IsNN x <=> IsNN y. 
+Proof.
+  intro H. split.
+  - exact (IsNN_of_Req x y H).
+  - exact (IsNN_of_Req y x (Req_sym _ _ H)).
+Defined.
+
+Corollary IsPos_then_IsNN x : IsPos x → IsNN x. 
+Proof.
+  intros [n Hn] m.
+  destruct (R_seq_le_seq x m n) as [Hlow _].
+  assert (Hopp : (-1 # m) == - (1 # m)) by (unfold Qeq; simpl; ring).
+  rewrite Hopp. lra.
+Defined.
+
+(* (2.9) Proposition. (a) Part 1 *)
+Proposition Rplus_of_IsNN (x y : R) (HNNx : IsNN x) (HNNy : IsNN y) : 
+    IsNN (x + y)%R.
+Proof.
+Admitted.
+
+(* (2.9) Proposition. (a) Part 2 *)
+Proposition Rmult_of_IsNN x y (HNNx : IsNN x) (HNNy : IsNN y) : 
+    IsNN (x * y)%R.
+Proof.
+Admitted.
+
+Proposition Rmult_of_IsPos x y (HPosx : IsPos x) (HPosy : IsPos y) : 
+    IsPos (x * y)%R.
+Proof.
+Admitted.
+
+(* (2.9) Proposition. (b) *)
+Proposition Rplus_of_IsPos_IsNN x y (HPosx : IsPos x) (HNNy : IsNN y) : 
+    IsPos (x + y)%R.
+Proof.
+Admitted.
+
+(* (2.9) Proposition. (c) *)
+Proposition IsNN_Rabs x : 
+    IsNN (Rabs x).
+Proof.
+Admitted.
+
+(* (2.9) Proposition. (d) *)
+Proposition Rmax_of_IsNN x y (HNNx : IsNN x) : 
+    IsNN (Rmax x y)%R.
+Proof.
+Admitted.
+
+Proposition Rmax_of_IsPos x y (HPosx : IsPos x) : 
+    IsPos (Rmax x y)%R.
+Proof.
+Admitted.
+
+(* (2.9) Proposition. (e) *)
+Proposition Rmin_of_IsPos x y (HPosx : IsPos x) (HPosy : IsPos y) : 
+    IsPos (Rmin x y)%R.
+Proof.
+Admitted.
+
+Proposition Rmin_of_IsNN x y (HNNx : IsNN x) (HNNy : IsNN y) : 
+    IsNN (Rmin x y)%R.
+Proof.
+Admitted.
+
 End R.
 
