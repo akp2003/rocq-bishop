@@ -965,35 +965,120 @@ Defined.
 Proposition Rplus_of_IsPos_IsNN x y (HPosx : IsPos x) (HNNy : IsNN y) : 
     IsPos (x + y)%R.
 Proof.
-Admitted.
+  apply IsPos_iff in HPosx as [N1 H1].
+  apply IsPos_iff.
+  exists (2 * N1)%positive.
+  intros m Hm.
+  cbn [seq Rplus].
+  apply (Qle_trans _ ((1 # N1) + (-1 # 2 * m))).
+  - assert (HZ : (Z.pos N1 <= Z.pos m)%Z) by lia.
+    assert (Hprod : (Z.pos N1 * Z.pos N1 <= Z.pos N1 * Z.pos m)%Z).
+    { apply Z.mul_le_mono_nonneg_l.
+      - lia.
+      - exact HZ. }
+    unfold Qle, Qplus; cbn [Qnum Qden].
+    rewrite !Pos2Z.inj_mul.
+    nia.
+  - apply Qplus_le_compat.
+    + apply H1. nia.
+    + apply (HNNy (2 * m)%positive).
+Defined.
 
 (* (2.9) Proposition. (c) *)
 Proposition IsNN_Rabs x : 
     IsNN (Rabs x).
 Proof.
-Admitted.
+  intros n. simpl. rewrite Qmax_eq_Qabs_self.
+  stepl 0. 2:{ unfold Qle; simpl; lia. }
+  apply Qabs_nonneg.
+Defined.
 
 (* (2.9) Proposition. (d) *)
 Proposition Rmax_of_IsNN x y (HNNx : IsNN x) : 
     IsNN (Rmax x y)%R.
 Proof.
-Admitted.
+  intros n. simpl.
+  apply (Qle_trans _ (seq x n)).
+  - exact (HNNx n).
+  - apply Q.le_max_l.
+Defined.
 
 Proposition Rmax_of_IsPos x y (HPosx : IsPos x) : 
     IsPos (Rmax x y)%R.
 Proof.
-Admitted.
+  destruct HPosx as [n Hn].
+  exists n. simpl.
+  apply (Qlt_le_trans _ (seq x n)).
+  - exact Hn.
+  - apply Q.le_max_l.
+Defined.
+
+(* AI suggested *)
+Lemma Qhalves (k : positive) : (1 # k) + (1 # k) == (2 # k).
+Proof. unfold Qeq; simpl; lia. Qed.
+
+(* AI suggested *)
+Lemma seq_lower_bound (x : R) (n m : positive) :
+    seq x n - (1 # n) - (1 # m) <= seq x m.
+Proof.
+  ltac1:(pose proof (reg x n m) as H).
+  apply Qabs_Qle_condition in H as [H1 _].
+  lra.
+Defined.
+
+Lemma Qmin_eq_neg_Qmax a b : - Qmax a b == Qmin (-a) (-b).
+Proof.
+  (* Human written *)
+   destruct (Q.max_dec a b).
+  - rewrite q.
+    rewrite Q.max_l_iff, Qle_minus_iff in q.
+    rewrite Q.min_l.
+    reflexivity.
+    lra.
+  - rewrite q.
+    rewrite Q.max_r_iff, Qle_minus_iff in q.
+    rewrite Q.min_r.
+    reflexivity.
+    lra.
+Defined.
 
 (* (2.9) Proposition. (e) *)
 Proposition Rmin_of_IsPos x y (HPosx : IsPos x) (HPosy : IsPos y) : 
     IsPos (Rmin x y)%R.
 Proof.
-Admitted.
+  destruct HPosx as [n Hn].
+  destruct HPosy as [m Hm].
+  assert (Hd : 0 < Qmin (seq x n - (1 # n)) (seq y m - (1 # m))).
+  { apply Q.min_glb_lt; lra. }
+  assert (∀q, 0 < q -> { k : positive | (2 # k) < q }).
+  { intros. exists (3 * Qden q)%positive.
+    apply Qlt_le_trans with (1 # Qden q).
+    - unfold Qlt; simpl; lia.
+    - unfold Qle; unfold Qlt in H; simpl in *; nia. }
+  destruct (H _ Hd) as [k Hk].
+  ltac1:(pose proof (Qhalves k) as Hh).
+  ltac1:(pose proof (Q.le_min_l (seq x n - (1 # n)) (seq y m - (1 # m))) as Hlx).
+  ltac1:(pose proof (Q.le_min_r (seq x n - (1 # n)) (seq y m - (1 # m))) as Hly).
+  exists k. simpl.
+  rewrite Qmin_eq_neg_Qmax.
+  apply Q.min_glb_lt.
+  - apply Qlt_le_trans with (seq x n - (1 # n) - (1 # k)).
+    + lra.
+    + rewrite Qopp_opp. apply seq_lower_bound.
+  - apply Qlt_le_trans with (seq y m - (1 # m) - (1 # k)).
+    + lra.
+    + rewrite Qopp_opp. apply seq_lower_bound.
+Defined.
 
 Proposition Rmin_of_IsNN x y (HNNx : IsNN x) (HNNy : IsNN y) : 
     IsNN (Rmin x y)%R.
 Proof.
-Admitted.
+  intros n. simpl.
+  rewrite Qmin_eq_neg_Qmax.
+  apply Q.min_glb.
+  - rewrite Qopp_opp. exact (HNNx n).
+  - rewrite Qopp_opp. exact (HNNy n).
+Defined.
 
 End R.
 
