@@ -7,6 +7,7 @@ From Ltac2 Require Import Ltac2.
 From Bishop Require Import Tactics.
 
 (* Why Didn't they prove this! *)
+Lemma Qopp_1_num (p : positive) : (-1 # p) == - (1 # p). Proof. unfold Qeq. simpl. reflexivity. Qed.
 Lemma Qeq_cancel_r a : a - a == 0. Proof. ring. Qed. 
 Lemma Qeq_cancel_l a : -a + a == 0. Proof. ring. Qed.
 Lemma Qopp_dist a b : - (a + b) == (-a - b). Proof. ring. Qed.

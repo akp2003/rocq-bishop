@@ -868,18 +868,98 @@ Defined.
 Proposition Rplus_of_IsNN (x y : R) (HNNx : IsNN x) (HNNy : IsNN y) : 
     IsNN (x + y)%R.
 Proof.
-Admitted.
+  (* Opus 5 generated, A human finished it! *)
+  unfold IsNN. intros n.
+  simpl seq.
+  assert (Hx := HNNx (2*n)%positive).
+  assert (Hy := HNNy (2*n)%positive).
+  assert (Hopp : (-1 # n) == (-1 # 2*n) + (-1 # 2*n)).
+  { unfold Qeq. simpl. lia. }
+  rewrite Hopp.
+  apply Qplus_le_compat.
+  exact Hx. exact Hy.
+Defined.
+
+
+(* AI suggested theorem (Opus 5) *)
+Lemma Qmult_lower_bound (a b e M : Q) :
+    0 <= e -> -e <= a -> Qabs a <= M -> -e <= b -> Qabs b <= M ->
+    - (e * M) <= a * b.
+Proof.
+  intros He Ha HaM Hb HbM.
+  assert (HM : 0 <= M).
+  { apply (Qle_trans _ (Qabs a)).
+    - apply Qabs_nonneg.
+    - exact HaM. }
+  assert (HaU : a <= M).
+  { apply (Qle_trans _ (Qabs a)).
+    - apply Qle_Qabs.
+    - exact HaM. }
+  assert (HbU : b <= M).
+  { apply (Qle_trans _ (Qabs b)).
+    - apply Qle_Qabs.
+    - exact HbM. }
+  assert (HeM : 0 <= e * M) by (apply Qmult_le_0_compat; assumption).
+  destruct (Qlt_le_dec a 0) as [Ha0 | Ha0];
+  destruct (Qlt_le_dec b 0) as [Hb0 | Hb0].
+  - assert (H : 0 <= (- a) * (- b)) by (apply Qmult_le_0_compat; lra).
+    lra.
+  - assert (H1 : (- e) * b <= a * b) by (apply Qmult_le_compat_r; assumption).
+    assert (H2 : b * e <= M * e) by (apply Qmult_le_compat_r; assumption).
+    lra.
+  - assert (H1 : (- e) * a <= b * a) by (apply Qmult_le_compat_r; assumption).
+    assert (H2 : a * e <= M * e) by (apply Qmult_le_compat_r; assumption).
+    lra.
+  - assert (H : 0 <= a * b) by (apply Qmult_le_0_compat; assumption).
+    lra.
+Defined.
 
 (* (2.9) Proposition. (a) Part 2 *)
 Proposition Rmult_of_IsNN x y (HNNx : IsNN x) (HNNy : IsNN y) : 
     IsNN (x * y)%R.
 Proof.
-Admitted.
+  unfold IsNN. intros n. simpl seq.
+  set (M := Pos.max (Kp x) (Kp y)).
+  set (m := (2 * n * M)%positive).
+  assert (Hxl : - (1 # m) <= seq x m) by (apply HNNx).
+  assert (Hyl : - (1 # m) <= seq y m) by (apply HNNy).
+  assert (Hxu : Qabs (seq x m) <= inject_P M).
+  { apply (Qle_trans _ (inject_P (Kp x))).
+    - apply Qlt_le_weak, Kp_gt.
+    - rewrite <-Posle_Qle. apply Pos.le_max_l. (* AI could not figure this out! *)
+    }
+  assert (Hyu : Qabs (seq y m) <= inject_P M).
+  { apply (Qle_trans _ (inject_P (Kp y))).
+    - apply Qlt_le_weak, Kp_gt.
+    - rewrite <-Posle_Qle. apply Pos.le_max_r. (* AI could not figure this out! *) }
+  apply (Qle_trans _ (- ((1 # m) * inject_P M))).
+  - rewrite Qopp_1_num. apply Qopp_le_compat.
+    unfold inject_P, Qle, Qmult. simpl. nia.
+  - apply Qmult_lower_bound; try assumption.
+    unfold Qle. simpl. lia.
+Defined.
 
 Proposition Rmult_of_IsPos x y (HPosx : IsPos x) (HPosy : IsPos y) : 
     IsPos (x * y)%R.
 Proof.
-Admitted.
+  apply IsPos_iff in HPosx as [N1 H1].
+  apply IsPos_iff in HPosy as [N2 H2].
+  set (M := Pos.max (Kp x) (Kp y)).
+  set (n := (N1 * N2 + N1 + N2)%positive).
+  exists n. simpl seq.
+  set (m := (2 * n * M)%positive).
+  assert (HM : (1 <= M)%positive) by apply Pos.le_1_l.
+  assert (Hm1 : (N1 <= m)%positive) by (nia).
+  assert (Hm2 : (N2 <= m)%positive) by (nia).
+  apply (Qlt_le_trans _ ((1 # N1) * (1 # N2))).
+  - unfold Qlt, Qmult. simpl. nia.
+  (* AI generated, Human completed *)
+  -  assert ((n * Pos.max (Kp x) (Kp y))~0 = m)%positive by easy.
+     rewrite H.
+     apply Qmult_le_compat_nonneg.
+    + constructor. easy. apply (H1 m Hm1).
+    + constructor. easy. apply (H2 m Hm2).
+Defined.
 
 (* (2.9) Proposition. (b) *)
 Proposition Rplus_of_IsPos_IsNN x y (HPosx : IsPos x) (HNNy : IsNN y) : 
