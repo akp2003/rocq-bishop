@@ -358,6 +358,8 @@ Notation "- x" := (Ropp x) : R_scope.
 
 Definition Rminus (x y : R) := (x + - y)%R.
 
+Infix "-" := Rminus : R_scope.
+
 (* (2.4) Definition. Part (e) *) 
 Check of_Q. (* use this *)
 
