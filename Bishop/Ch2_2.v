@@ -1,7 +1,7 @@
 (* BEAWARE If you change the order of these two lines, your COQ will be fucked up! *)
 From Stdlib Require Import Unicode.Utf8 BinNat Lia Lra.
 From Stdlib Require Import QArith Qabs Psatz Zify Qround.
-From Stdlib Require Import PArith Qminmax List.
+From Stdlib Require Import PArith Qminmax List CRelationClasses CMorphisms.
 
 (* From parseque Require Import NEList. *)
 
@@ -1081,6 +1081,254 @@ Proof.
   - rewrite Qopp_opp. exact (HNNx n).
   - rewrite Qopp_opp. exact (HNNy n).
 Defined.
+
+(* (2.10) Definition. *)
+Definition Rle (x y : R) := IsPos (y - x)%R.
+Definition Rlt (x y : R) := IsNN (y - x)%R.
+Abbreviation Rgt a b := (Rlt b a) (only parsing).
+Abbreviation Rge a b := (Rle b a) (only parsing).
+
+Infix "<" := Rlt : R_scope.
+Infix "<=" := Rle : R_scope.
+Notation "x > y" := (Rlt y x)(only parsing) : R_scope.
+Notation "x >= y" := (Rle y x)(only parsing) : R_scope.
+Notation "x <= y <= z" := (x<=y/\y<=z) : R_scope.
+Notation "x <= y < z" := (x<=y/\y<z) : R_scope.
+Notation "x < y <= z" := (x<y/\y<=z) : R_scope.
+Notation "x < y < z" := (x<y/\y<z) : R_scope.
+
+(* A beautiful excerpt of the book: *)
+(* If x < y or x = y, then x ~ y. The converse is not valid: as we shall
+see later, it is possible that we have x ~ y without being able to prove
+that x < y or x = y. For this reason it was necessary to define the
+relations < and ~ independently of each other. *)
+
+(* Morphisms suggested by AI *)
+#[global]
+Add Parametric Morphism : IsNN
+  with signature (Req ==> iff) as IsNN_mor.
+Proof. intros a b Hab.  constructor. apply Req_IsNN_iff. easy. apply Req_IsNN_iff. easy. Defined.
+
+#[global]
+Add Parametric Morphism : Rlt
+  with signature (Req ==> Req ==> iff) as Rlt_mor.
+Proof.
+  intros a b Hab c d Hcd. unfold Rlt.
+  constructor.
+  apply Req_IsNN_iff. unfold Rminus. rewrite Hab, Hcd. reflexivity.
+  apply Req_IsNN_iff. unfold Rminus. rewrite Hab, Hcd. reflexivity.
+Defined.
+
+#[global]
+Instance IsPos_mor : Proper (Req ==> iffT) IsPos.
+Proof.
+  intros x y Hxy. split; intro H.
+  - apply (IsPos_of_Req x y); assumption.
+  - apply (IsPos_of_Req y x). symmetry. assumption. exact H.
+Defined.
+
+(* You need to do it also for crelation :|, I don't understand any of this but anyways *)
+#[global] Instance Req_CEquivalence : CRelationClasses.Equivalence Req.
+Proof. split. exact Req_refl. exact Req_sym. exact Req_trans. Defined.
+
+#[global] Instance Rplus_CProper :
+CMorphisms.Proper (CMorphisms.respectful Req (CMorphisms.respectful Req Req)) Rplus.
+Proof. intros a b Hab c d Hcd. rewrite Hcd,Hab. reflexivity. Defined.
+
+#[global] Instance Ropp_CProper :
+CMorphisms.Proper (CMorphisms.respectful Req Req) Ropp.
+Proof. intros a b Hab. rewrite Hab. reflexivity. Defined.
+
+#[global]
+Instance Rle_mor : Proper (Req ==> Req ==> iffT) Rle.
+Proof.
+  intros a b Hab c d Hcd. unfold Rle.
+  constructor.
+  intros. unfold Rminus. rewrite <-Hcd,<-Hab.
+  exact H.
+  intros. unfold Rminus. rewrite Hcd,Hab.
+  exact H.
+Defined.
+
+(* (2.11) Proposition. (a) *)
+Proposition Rle_lt_trans x y z : (x <= y -> y < z -> x < z)%R.
+Proof.
+  intros Hxy Hyz. unfold Rlt, Rle in *.
+  refine (fst (Req_IsNN_iff ((z - y) + (y - x))%R (z - x)%R _) _).
+  - ring.
+  - apply Rplus_of_IsNN.
+    + exact Hyz.
+    + exact (IsPos_then_IsNN _ Hxy).
+Defined.
+
+Proposition Rlt_le_trans x y z : (x < y -> y <= z -> x < z)%R.
+Proof.
+  intros Hxy Hyz.
+  refine (fst
+    (Req_IsNN_iff ((z - y) + (y - x))%R (z - x)%R _)
+    _).
+  - ring.
+  - apply Rplus_of_IsNN.
+    + exact (IsPos_then_IsNN _ Hyz).
+    + exact Hxy.
+Defined.
+
+(* (2.11) Proposition. (b) *)
+Proposition Rle_le_trans x y z : (x <= y -> y <= z -> x <= z)%R.
+Proof.
+  intros Hxy Hyz.
+  refine (fst
+    (Req_IsPos_iff ((z - y) + (y - x))%R (z - x)%R _)
+    _).
+  - ring.
+  - apply IsPos_then_IsNN in Hxy.
+    exact (Rplus_of_IsPos_IsNN _ _ Hyz Hxy). 
+Defined.
+
+(* (2.11) Proposition. (c) *)
+Proposition Rplus_le_compat x y z t : (x <= z -> y <= t -> x + y <= z + t)%R.
+Proof.
+  intros Hxz Hyt.
+  unfold Rle in *.
+  assert (H : ((z + t) - (x + y) ≖ (z - x) + (t - y))%R) by ring.
+  apply (Req_IsPos_iff _ _ H).
+  apply Rplus_of_IsPos_IsNN.
+  - exact Hxz.
+  - apply IsPos_then_IsNN. exact Hyt.
+Defined.
+
+(* (2.11) Proposition. (d) *)
+Proposition Rplus_lt_compat x y z t : (x <= z -> y < t -> x + y < z + t)%R.
+Proof.
+  intros Hxz Hyt.
+  unfold Rlt in *. unfold Rle in Hxz.
+  assert (H : ((z + t) - (x + y) ≖ (z - x) + (t - y))%R) by ring.
+  apply (Req_IsNN_iff _ _ H).
+  apply Rplus_of_IsNN.
+  - apply IsPos_then_IsNN. exact Hxz.
+  - exact Hyt.
+Defined.
+
+(* (2.11) Proposition. (e) *)
+Proposition Rmult_le_compat_r x y z : (of_Q 0 <= y -> x <= z -> x * y <= z * y)%R.
+Proof.
+  intros Hy Hxz.
+  unfold Rle in *.
+  assert (Hy' : IsPos y).
+  1:{ apply (IsPos_of_Req (y - of_Q 0)%R). 1:{ ring. } exact Hy. }
+  apply (IsPos_of_Req ((z - x) * y)%R).
+  1:{ ring. }
+  exact (Rmult_of_IsPos _ _ Hxz Hy').
+Defined.
+
+(* (2.11) Proposition. (f) *)
+Proposition Rmult_lt_compat_r x y z : (of_Q 0 < y -> x < z -> x * y < z * y)%R.
+Proof.
+  intros Hy Hxz.
+  unfold Rlt in *.
+  assert (Hy' : IsNN y).
+  1:{ apply (IsNN_of_Req (y - of_Q 0)%R). 1:{ ring. } exact Hy. }
+  apply (IsNN_of_Req ((z - x) * y)%R).
+  1:{ ring. }
+  exact (Rmult_of_IsNN _ _ Hxz Hy').
+Defined.
+
+(* (2.11) Proposition. (g) *)
+Proposition Ropp_lt_compat x y : (x < y -> - y < - x)%R.
+Proof.
+  intros H.
+  unfold Rlt in *.
+  apply (IsNN_of_Req (y - x)%R).
+  1:{ ring. }
+  exact H.
+Defined.
+
+(* (2.11) Proposition. (h) *)
+Proposition Ropp_le_compat x y : (x <= y -> - y <= - x)%R.
+Proof.
+  intros H.
+  unfold Rle in *.
+  apply (IsPos_of_Req (y - x)%R).
+  1:{ ring. }
+  exact H.
+Defined.
+
+Lemma max_r x y : (x <= y -> Rmax x y ≖ y)%R.
+Proof.
+  intros Hxy.
+  unfold Rle, IsPos in Hxy.
+  destruct Hxy as [M HN].
+  unfold Rminus in HN; simpl in HN.
+  unfold Req.
+  intro n.
+  simpl.
+  assert (Hdiff : seq x n - seq y n <= (2 # n)).
+  {
+    assert (Hx := R_reg_no_Qabs x (2 * M) n).
+    assert (Hy := R_reg_no_Qabs y n (2 * M)).
+    assert (Hhalf : (1 # (2 * M)) + (1 # (2 * M)) == (1 # M)).
+    { unfold Qeq; simpl; lia. }
+    rewrite <-Qhalves.
+    change (M~0)%positive with (2 * M)%positive in HN.
+    lra.
+  }
+  set (d := Qmax (seq x n) (seq y n) - seq y n).
+  change (Qabs d <= (2 # n)).
+  assert (Hd0 : 0 <= d).
+  {
+    apply (proj1 (Qle_minus_iff _ _)).
+    apply Q.le_max_r.
+  }
+  assert (Hd2 : d <= (2 # n)).
+  {
+    destruct (Q.max_dec (seq x n) (seq y n)) as [Hmax | Hmax].
+    - stepl (Qmax (seq x n) (seq y n) - seq y n).
+      rewrite Hmax.
+      exact Hdiff.
+      proveeq.
+      reflexivity.
+    - stepl (Qmax (seq x n) (seq y n) - seq y n).
+      rewrite Hmax.
+      stepl 0.
+      + unfold Qle; simpl; lia.
+      + proveeq; ring.
+      + proveeq. reflexivity.
+  }
+  destruct (Qabs_dec d) as [Hdabs | Hdabs].
+  - rewrite Hdabs.
+    exact Hd2.
+  - rewrite Hdabs.
+    lra.
+Defined.
+
+Lemma max_inv_r x y : (Rmax x y ≖ y -> x <= y)%R.
+Proof.
+Admitted.
+  
+(* (2.11) Proposition. (i) *)
+Proposition le_max_l x y : (x <= Rmax x y)%R.
+Proof.
+Admitted.
+
+(* (2.11) Proposition. (j) *)
+Proposition le_min_l x y : (Rmin x y <= x)%R.
+Proof.
+Admitted.
+
+(* (2.11) Proposition. (k) *)
+Proposition le_antisym x y : (x <= y -> y <= x -> x = y)%R.
+Proof.
+Admitted.
+
+(* (2.11) Proposition. (l) *)
+Proposition Rabs_nonneg x: (of_Q 0 <= Rabs x)%R.
+Proof.
+Admitted.
+
+(* (2.11) Proposition. (m) *)
+Proposition Rabs_triangle x y: (Rabs (x + y) <= Rabs x + Rabs y)%R.
+Proof.
+Admitted.
 
 End R.
 
