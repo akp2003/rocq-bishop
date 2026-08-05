@@ -6,6 +6,8 @@ From Ltac2 Require Import Ltac2.
 
 From Bishop Require Import Tactics.
 
+From Stdlib Require Import CRelationClasses.
+
 (* Why Didn't they prove this! *)
 Lemma Qopp_1_num (p : positive) : (-1 # p) == - (1 # p). Proof. unfold Qeq. simpl. reflexivity. Qed.
 Lemma Qeq_cancel_r a : a - a == 0. Proof. ring. Qed. 
@@ -246,7 +248,7 @@ Proof.
   - stepl 0. apply Qabs_nonneg. exact q.
 Qed.
 
-Infix "<=>" := (fun A B => prod (forall _ : A, B) (forall _ : B, A)) (at level 70, no associativity).
+Infix "<=>" := iffT (at level 70, no associativity).
 
 Lemma Qmake_inject_P p : 1 # p = / (inject_P p).
 Proof.
