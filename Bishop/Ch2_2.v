@@ -1083,8 +1083,8 @@ Proof.
 Defined.
 
 (* (2.10) Definition. *)
-Definition Rle (x y : R) := IsPos (y - x)%R.
-Definition Rlt (x y : R) := IsNN (y - x)%R.
+Definition Rle (x y : R) := IsNN (y - x)%R.
+Definition Rlt (x y : R) := IsPos (y - x)%R.
 Abbreviation Rgt a b := (Rlt b a) (only parsing).
 Abbreviation Rge a b := (Rle b a) (only parsing).
 
@@ -1110,10 +1110,10 @@ Add Parametric Morphism : IsNN
 Proof. intros a b Hab.  constructor. apply Req_IsNN_iff. easy. apply Req_IsNN_iff. easy. Defined.
 
 #[global]
-Add Parametric Morphism : Rlt
-  with signature (Req ==> Req ==> iff) as Rlt_mor.
+Add Parametric Morphism : Rle
+  with signature (Req ==> Req ==> iff) as Rle_mor.
 Proof.
-  intros a b Hab c d Hcd. unfold Rlt.
+  intros a b Hab c d Hcd. unfold Rle.
   constructor.
   apply Req_IsNN_iff. unfold Rminus. rewrite Hab, Hcd. reflexivity.
   apply Req_IsNN_iff. unfold Rminus. rewrite Hab, Hcd. reflexivity.
@@ -1140,9 +1140,9 @@ CMorphisms.Proper (CMorphisms.respectful Req Req) Ropp.
 Proof. intros a b Hab. rewrite Hab. reflexivity. Defined.
 
 #[global]
-Instance Rle_mor : Proper (Req ==> Req ==> iffT) Rle.
+Instance Rlt_mor : Proper (Req ==> Req ==> iffT) Rlt.
 Proof.
-  intros a b Hab c d Hcd. unfold Rle.
+  intros a b Hab c d Hcd. unfold Rlt.
   constructor.
   intros. unfold Rminus. rewrite <-Hcd,<-Hab.
   exact H.
@@ -1154,35 +1154,33 @@ Defined.
 Proposition Rle_lt_trans x y z : (x <= y -> y < z -> x < z)%R.
 Proof.
   intros Hxy Hyz. unfold Rlt, Rle in *.
-  refine (fst (Req_IsNN_iff ((z - y) + (y - x))%R (z - x)%R _) _).
+  refine (fst (Req_IsPos_iff ((z - y) + (y - x))%R (z - x)%R _) _).
   - ring.
-  - apply Rplus_of_IsNN.
+  - apply Rplus_of_IsPos_IsNN.
     + exact Hyz.
-    + exact (IsPos_then_IsNN _ Hxy).
+    + exact Hxy.
 Defined.
 
 Proposition Rlt_le_trans x y z : (x < y -> y <= z -> x < z)%R.
 Proof.
+  unfold Rle,Rlt.
   intros Hxy Hyz.
-  refine (fst
-    (Req_IsNN_iff ((z - y) + (y - x))%R (z - x)%R _)
-    _).
+  apply IsPos_of_Req with (x := ((y - x) + (z - y))%R).
   - ring.
-  - apply Rplus_of_IsNN.
-    + exact (IsPos_then_IsNN _ Hyz).
+  - apply Rplus_of_IsPos_IsNN.
     + exact Hxy.
+    + exact Hyz.
 Defined.
 
 (* (2.11) Proposition. (b) *)
 Proposition Rle_le_trans x y z : (x <= y -> y <= z -> x <= z)%R.
 Proof.
   intros Hxy Hyz.
-  refine (fst
-    (Req_IsPos_iff ((z - y) + (y - x))%R (z - x)%R _)
-    _).
+  apply IsNN_of_Req with (x := ((z - y) + (y - x))%R).
   - ring.
-  - apply IsPos_then_IsNN in Hxy.
-    exact (Rplus_of_IsPos_IsNN _ _ Hyz Hxy). 
+  - apply Rplus_of_IsNN.
+    + exact Hyz.
+    + exact Hxy.
 Defined.
 
 (* (2.11) Proposition. (c) *)
@@ -1191,10 +1189,10 @@ Proof.
   intros Hxz Hyt.
   unfold Rle in *.
   assert (H : ((z + t) - (x + y) ≖ (z - x) + (t - y))%R) by ring.
-  apply (Req_IsPos_iff _ _ H).
-  apply Rplus_of_IsPos_IsNN.
+  apply (Req_IsNN_iff _ _ H).
+  apply Rplus_of_IsNN.
   - exact Hxz.
-  - apply IsPos_then_IsNN. exact Hyt.
+  - exact Hyt.
 Defined.
 
 (* (2.11) Proposition. (d) *)
@@ -1202,11 +1200,11 @@ Proposition Rplus_lt_compat x y z t : (x <= z -> y < t -> x + y < z + t)%R.
 Proof.
   intros Hxz Hyt.
   unfold Rlt in *. unfold Rle in Hxz.
-  assert (H : ((z + t) - (x + y) ≖ (z - x) + (t - y))%R) by ring.
-  apply (Req_IsNN_iff _ _ H).
-  apply Rplus_of_IsNN.
-  - apply IsPos_then_IsNN. exact Hxz.
+  assert (H : ((z + t) - (x + y) ≖ (t - y) + (z - x))%R) by ring.
+  apply (Req_IsPos_iff _ _ H).
+  apply Rplus_of_IsPos_IsNN.
   - exact Hyt.
+  - exact Hxz.
 Defined.
 
 (* (2.11) Proposition. (e) *)
@@ -1214,11 +1212,13 @@ Proposition Rmult_le_compat_r x y z : (of_Q 0 <= y -> x <= z -> x * y <= z * y)%
 Proof.
   intros Hy Hxz.
   unfold Rle in *.
-  assert (Hy' : IsPos y).
-  1:{ apply (IsPos_of_Req (y - of_Q 0)%R). 1:{ ring. } exact Hy. }
-  apply (IsPos_of_Req ((z - x) * y)%R).
-  1:{ ring. }
-  exact (Rmult_of_IsPos _ _ Hxz Hy').
+  apply IsNN_of_Req with (x := ((z - x) * y)%R).
+  - ring.
+  - apply Rmult_of_IsNN.
+    + exact Hxz.
+    + apply IsNN_of_Req with (x := (y - of_Q 0)%R).
+      * ring.
+      * exact Hy.
 Defined.
 
 (* (2.11) Proposition. (f) *)
@@ -1226,21 +1226,23 @@ Proposition Rmult_lt_compat_r x y z : (of_Q 0 < y -> x < z -> x * y < z * y)%R.
 Proof.
   intros Hy Hxz.
   unfold Rlt in *.
-  assert (Hy' : IsNN y).
-  1:{ apply (IsNN_of_Req (y - of_Q 0)%R). 1:{ ring. } exact Hy. }
-  apply (IsNN_of_Req ((z - x) * y)%R).
-  1:{ ring. }
-  exact (Rmult_of_IsNN _ _ Hxz Hy').
+  apply IsPos_of_Req with (x := ((z - x) * y)%R).
+  - ring.
+  - apply Rmult_of_IsPos.
+    + exact Hxz.
+    + apply IsPos_of_Req with (x := (y - of_Q 0)%R).
+      * ring.
+      * exact Hy.
 Defined.
 
 (* (2.11) Proposition. (g) *)
 Proposition Ropp_lt_compat x y : (x < y -> - y < - x)%R.
 Proof.
-  intros H.
-  unfold Rlt in *.
-  apply (IsNN_of_Req (y - x)%R).
-  1:{ ring. }
-  exact H.
+  intros Hxy.
+    unfold Rlt in *.
+    apply IsPos_of_Req with (x := (y - x)%R).
+    - ring.
+    - exact Hxy.
 Defined.
 
 (* (2.11) Proposition. (h) *)
@@ -1248,87 +1250,107 @@ Proposition Ropp_le_compat x y : (x <= y -> - y <= - x)%R.
 Proof.
   intros H.
   unfold Rle in *.
-  apply (IsPos_of_Req (y - x)%R).
+  apply (IsNN_of_Req (y - x)%R).
   1:{ ring. }
   exact H.
 Defined.
-
-Lemma max_r x y : (x <= y -> Rmax x y ≖ y)%R.
-Proof.
-  intros Hxy.
-  unfold Rle, IsPos in Hxy.
-  destruct Hxy as [M HN].
-  unfold Rminus in HN; simpl in HN.
-  unfold Req.
-  intro n.
-  simpl.
-  assert (Hdiff : seq x n - seq y n <= (2 # n)).
-  {
-    assert (Hx := R_reg_no_Qabs x (2 * M) n).
-    assert (Hy := R_reg_no_Qabs y n (2 * M)).
-    assert (Hhalf : (1 # (2 * M)) + (1 # (2 * M)) == (1 # M)).
-    { unfold Qeq; simpl; lia. }
-    rewrite <-Qhalves.
-    change (M~0)%positive with (2 * M)%positive in HN.
-    lra.
-  }
-  set (d := Qmax (seq x n) (seq y n) - seq y n).
-  change (Qabs d <= (2 # n)).
-  assert (Hd0 : 0 <= d).
-  {
-    apply (proj1 (Qle_minus_iff _ _)).
-    apply Q.le_max_r.
-  }
-  assert (Hd2 : d <= (2 # n)).
-  {
-    destruct (Q.max_dec (seq x n) (seq y n)) as [Hmax | Hmax].
-    - stepl (Qmax (seq x n) (seq y n) - seq y n).
-      rewrite Hmax.
-      exact Hdiff.
-      proveeq.
-      reflexivity.
-    - stepl (Qmax (seq x n) (seq y n) - seq y n).
-      rewrite Hmax.
-      stepl 0.
-      + unfold Qle; simpl; lia.
-      + proveeq; ring.
-      + proveeq. reflexivity.
-  }
-  destruct (Qabs_dec d) as [Hdabs | Hdabs].
-  - rewrite Hdabs.
-    exact Hd2.
-  - rewrite Hdabs.
-    lra.
-Defined.
-
-Lemma max_inv_r x y : (Rmax x y ≖ y -> x <= y)%R.
-Proof.
-Admitted.
   
 (* (2.11) Proposition. (i) *)
 Proposition le_max_l x y : (x <= Rmax x y)%R.
 Proof.
-Admitted.
+  unfold Rle, IsNN.
+  intros n. 
+  simpl.
+  assert (Hmax := Q.le_max_l (seq x (2 * n)) (seq y (2 * n))).
+  assert (Hneg : -1 # n <= 0) by (unfold Qle; simpl; lia).
+  change (n~0)%positive with (2 * n)%positive.
+  lra.
+Defined.
 
 (* (2.11) Proposition. (j) *)
 Proposition le_min_l x y : (Rmin x y <= x)%R.
 Proof.
-Admitted.
+  unfold Rle, IsNN.
+  intros n. 
+  simpl.
+  assert (Hmin := Q.le_min_l (seq x (2 * n)) (seq y (2 * n))).
+  assert (Hneg : -1 # n <= 0) by (unfold Qle; simpl; lia).
+  change (n~0)%positive with (2 * n)%positive.
+  rewrite Qmin_eq_neg_Qmax.
+  rewrite Qopp_opp,Qopp_opp.
+  lra.
+Defined.
 
 (* (2.11) Proposition. (k) *)
-Proposition le_antisym x y : (x <= y -> y <= x -> x = y)%R.
+Proposition le_antisym x y : (x <= y -> y <= x -> x ≖ y)%R.
 Proof.
-Admitted.
+  (* Gemini Pro 3.1 *)
+  intros Hxy Hyx n.
+  (* We use your provided lemma to show that bounding by an arbitrarily small positive rational implies the tight bound *)
+  apply (forall_Qplus_inv (2 # n) _ 2).
+  intros p.
+  assert (Hx := reg x (2 * p) n).
+  assert (Hy := reg y n (2 * p)).
+  assert (H1 := Hxy p).
+  assert (H2 := Hyx p).
+  simpl in H1, H2.
+  
+  (* We decompose the difference to apply the triangle inequality *)
+  assert (H_eq : seq x n - seq y n == (seq x n - seq x (2 * p)) + (seq x (2 * p) - seq y (2 * p)) + (seq y (2 * p) - seq y n)) by ring.
+  rewrite H_eq.
+  eapply Qle_trans. apply Qabs_triangle_3.
+  
+  (* Extracting the middle term bound using lra *)
+  assert (H_mid : Qabs (seq x (2 * p) - seq y (2 * p)) <= 1 # p).
+  { (* Human *)
+    change (p~0)%positive with (2 * p)%positive in H1,H2.
+    apply Qabs_Qle_condition.
+    assert (H_opp : -1 # p == - (1 # p)) by (unfold Qeq; simpl; lia).
+    rewrite H_opp in H1.
+    lra.
+  }
+  (* Helper equations to assist lra with Qmake fractions *)
+  assert (H2p : (1 # p) + (1 # p) == 2 # p) by (unfold Qeq; simpl; lia).
+  assert (H2n : (1 # n) + (1 # n) == 2 # n) by (unfold Qeq; simpl; lia).
+  assert (Hp_half : (1 # (2 * p)) + (1 # (2 * p)) == 1 # p) by (unfold Qeq; simpl; lia).
+  
+  (* lra closes the remaining bounds sum perfectly *)
+  lra.
+Defined.
 
 (* (2.11) Proposition. (l) *)
 Proposition Rabs_nonneg x: (of_Q 0 <= Rabs x)%R.
 Proof.
-Admitted.
+  unfold Rle, IsNN.
+  intros n.
+  simpl.
+  (* seq of Rabs evaluates to Qmax, which is equal to Qabs. lra takes it from there. *)
+  assert (H_max := Qmax_eq_Qabs_self (seq x (2 * n))).
+  assert (H_abs : 0 <= Qabs (seq x (2 * n))) by apply Qabs_nonneg.
+  assert (H_neg : -1 # n <= 0) by (unfold Qle; simpl; lia).
+  change (n~0)%positive with (2 * n)%positive.
+  lra.
+Defined.
 
 (* (2.11) Proposition. (m) *)
 Proposition Rabs_triangle x y: (Rabs (x + y) <= Rabs x + Rabs y)%R.
 Proof.
-Admitted.
+  unfold Rle, IsNN.
+  intros n.
+  simpl.
+  (* Expose the Qabs equivalence for all three components generated by the Rplus and Rabs definitions *)
+  assert (H_maxx := Qmax_eq_Qabs_self (seq x (2 * (2 * n)))).
+  assert (H_maxy := Qmax_eq_Qabs_self (seq y (2 * (2 * n)))).
+  assert (H_maxxy := Qmax_eq_Qabs_self (seq x (2 * (2 * n)) + seq y (2 * (2 * n)))).
+  
+  (* Import standard rational triangle inequality constraint *)
+  assert (H_tri := Qabs_triangle (seq x (2 * (2 * n))) (seq y (2 * (2 * n)))).
+  assert (H_neg : -1 # n <= 0) by (unfold Qle; simpl; lia).
+  
+  (* Feed properties directly to the linear solver *)
+  change (n~0~0)%positive with (2 * (2 * n))%positive.
+  lra.
+Defined.
 
 End R.
 
