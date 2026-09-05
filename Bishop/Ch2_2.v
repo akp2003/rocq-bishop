@@ -1096,6 +1096,7 @@ Notation "x <= y <= z" := (x<=y/\y<=z) : R_scope.
 Notation "x <= y < z" := (x<=y/\y<z) : R_scope.
 Notation "x < y <= z" := (x<y/\y<=z) : R_scope.
 Notation "x < y < z" := (x<y/\y<z) : R_scope.
+Definition IsNeg x := (x < of_Q 0)%R.
 
 (* A beautiful excerpt of the book: *)
 (* If x < y or x = y, then x ~ y. The converse is not valid: as we shall
@@ -1351,6 +1352,281 @@ Proof.
   change (n~0~0)%positive with (2 * (2 * n))%positive.
   lra.
 Defined.
+
+(* (2.12) Definition. *)
+Definition RNeq x y := (sum (x<y) (y<x))%R. (* sum means or  *)
+
+(* 
+(* TODO Extra *)
+Lemma RNeq_not_Req_iff x y : RNeq x y <=> not (x ≖ y).
+ *)
+
+Lemma Rmax_comm x y : (Rmax x y) ≖ (Rmax y x).
+Proof.
+  intro n. simpl head seq.
+  rewrite (Q.max_comm (seq y n) (seq x n)).
+  rewrite Qeq_cancel_r.
+  easy.
+Defined.
+
+(* (2.13) Proposition.  *)
+(* We shall break this into 9 sub parts *)
+(* part 1 *)
+Proposition Rinv_exists x (Hnz : RNeq x (of_Q 0)): 
+  {M | ∀m, (M <= m)%positive -> (1 # M) <= (Qabs (seq x m))}.
+Proof.
+  (* First, show that Rabs x is positive *)
+  assert (IsPos (Rabs x)) as HPos.
+  {
+    destruct Hnz as [Hlt | Hgt].
+    - (* Case: x < 0, then |x| = -x > 0 *)
+      unfold Rabs.
+      rewrite Rmax_comm.
+      apply Rmax_of_IsPos.
+      apply Ropp_lt_compat in Hlt.
+      assert (of_Q 0 ≖ - of_Q 0)%R.
+      { rewrite <- (of_Q_Ropp 0). easy. }
+      rewrite <-H in Hlt.
+      unfold Rlt in Hlt.
+      assert (-x ≖ - x - of_Q 0 )%R by ring.
+      rewrite H0. exact Hlt.
+    - (* Case: 0 < x, then |x| = x > 0 *)
+      unfold Rabs.
+      apply Rmax_of_IsPos.
+      unfold Rlt in Hgt.
+      assert (x ≖ x - of_Q 0)%R by ring.
+      rewrite H. exact Hgt.
+  }
+  
+  (* Use IsPos_iff to extract the witness N *)
+  apply IsPos_iff in HPos.
+  destruct HPos as [M HM].
+  
+  (* N is our desired M *)
+  exists M.
+  intros m Hm.
+  specialize (HM m Hm).
+  
+  (* Now relate seq (Rabs x) m to Qabs (seq x m) *)
+  unfold Rabs in HM.
+  simpl in HM.
+  simpl in HM.
+  rewrite Qmax_eq_Qabs_self in HM.
+  exact HM.
+Defined.
+
+(* 6 helper lemmas *)
+Lemma Qabs_minus_comm : forall a b : Q, Qabs (a - b) == Qabs (b - a).
+Proof.
+  intros a b.
+  ltac1:(setoid_replace (a - b) with (- (b - a)) by ring).
+  apply Qabs_opp.
+Defined.
+
+Lemma Qinv_diff_bound : forall (a b : Q),
+  ~ a == 0 -> ~ b == 0 ->
+  Qabs (/ a - / b) == Qabs (a - b) * Qabs (/ a) * Qabs (/ b).
+Proof.
+  intros a b Ha Hb.
+  assert (H : / a - / b == (b - a) * / a * / b).
+  { field; split; assumption. }
+  rewrite H.
+  rewrite !Qabs_Qmult.
+  rewrite (Qabs_minus_comm b a).
+  reflexivity.
+Defined.
+
+Lemma Qdiv_le_compat : forall a b c d : Q,
+  0 <= a -> a <= c -> 0 < d -> d <= b ->
+  a / b <= c / d.
+Proof.
+  intros a b c d Ha Hac Hd Hdb.
+  assert (Hb : 0 < b) by (apply Qlt_le_trans with d; assumption).
+  assert (Hc : 0 <= c) by (apply Qle_trans with a; assumption).
+  (* cross-multiplied inequality *)
+  assert (Hcross : a * d <= c * b).
+  { apply Qle_trans with (c * d).
+    apply Qmult_le_compat_r > [ assumption | apply Qlt_le_weak; assumption ].
+    rewrite (Qmult_comm c d), (Qmult_comm c b).
+    apply Qmult_le_compat_r; assumption. }
+  (* shift the division on the right, then on the left *)
+  apply Qle_shift_div_r> [ assumption | ].
+  ltac1:(setoid_replace (c / d * b) with (c * b / d) by
+    (field; intro He; rewrite He in Hd; exact (Qlt_irrefl 0 Hd))).
+  apply Qle_shift_div_l; assumption.
+Defined.
+
+Lemma Qopp_nonzero :
+  forall q : Q,
+    ~ q == 0 ->
+    ~ - q == 0.
+Proof.
+  intros q H Hq.
+  apply H.
+  rewrite <- (Qopp_involutive q), Hq.
+  reflexivity.
+Defined.
+
+(* Why even Fable 5 couldn't figure this out *)
+Lemma Qabs_nonzero :
+  forall q : Q,
+    ~ q == 0 ->
+    ~ Qabs q == 0.
+Proof.
+  intros q H.
+  destruct (Qabs_dec q).
+  + rewrite q0. assumption.
+  + rewrite q0. apply Qopp_nonzero. assumption. 
+Defined.
+
+(* AI suggested for a shorter proof *)
+(* Shared core: if both seq x a and seq x b have |·| >= 1#M,
+   then |/seq x a - /seq x b| <= (1#m) + (1#n)
+   provided |(seq x a - seq x b)| <= (1#a) + (1#b) and
+   (1#a)+(1#b) <= (1#m)+(1#n) after dividing by (1#M)^2 *)
+Lemma Rinv_reg_aux (x : R) (M a b : positive) (m n : positive)
+    (Hba : (1#M) <= Qabs (seq x a))
+    (Hbb : (1#M) <= Qabs (seq x b))
+    (Hreg : Qabs (seq x a - seq x b) <= (1#a) + (1#b))
+    (Hfin : ((1#a) + (1#b)) / ((1#M)*(1#M)) <= (1#m) + (1#n)) :
+    Qabs (/ seq x a - / seq x b) <= (1#m) + (1#n).
+Proof.
+  assert (Qabs 0 == 0) as Qabs_0 by easy.
+  assert (Hnza : ~ seq x a == 0).
+  { intro E; rewrite E, Qabs_0 in Hba.
+    refine (Qlt_irrefl 0 (Qlt_le_trans _ _ _ _ Hba)).
+    easy. }
+  assert (Hnzb : ~ seq x b == 0).
+  { intro E; rewrite E, Qabs_0 in Hbb.
+    refine (Qlt_irrefl 0 (Qlt_le_trans _ _ _ _ Hbb)). easy. }
+  rewrite (Qinv_diff_bound _ _ Hnza Hnzb).
+  apply Qle_trans with (((1#a)+(1#b)) / ((1#M)*(1#M)))> [|exact Hfin].
+  ltac1:(setoid_replace
+    (Qabs (seq x a - seq x b) * Qabs (/seq x a) * Qabs (/seq x b))
+    with (Qabs (seq x a - seq x b) / (Qabs (seq x a) * Qabs (seq x b)))
+    ).
+  + apply Qdiv_le_compat.
+  - apply Qabs_nonneg.
+  - exact Hreg.
+  - reflexivity.
+  - apply Qle_trans with (Qabs (seq x a) * (1#M)).
+    ++ apply Qmult_le_compat_r> [exact Hba | apply Qlt_le_weak; reflexivity].
+    ++ rewrite (Qmult_comm _ (1#M)), (Qmult_comm _ (Qabs (seq x b))).
+      apply Qmult_le_compat_r> [exact Hbb | apply Qabs_nonneg].
+  + rewrite !Qabs_Qinv; field; split. 
+    apply Qabs_nonzero. assumption.
+    apply Qabs_nonzero. assumption.
+Defined.
+
+Structure RNZ : Set := RNZmake {
+    rnz_r : R;
+    rnz_hnz : RNeq rnz_r (of_Q 0)
+  }.
+
+(* part 2 *)
+#[refine] Definition RNZinv (r : RNZ) : RNZ :=
+ let x := (rnz_r r) in 
+ let M := proj1_sig (Rinv_exists x (rnz_hnz r)) in 
+ {| rnz_r := {| seq := (
+                fun n => 
+                  if (n <? M)%positive then Qinv (seq x (M^3))
+                  else Qinv (seq x (n*M^2)%positive)
+              ) |};
+    rnz_hnz := _
+ |}.
+Proof.
+  (* First let's prove the non zero *)
+  2:{ 
+    destruct (rnz_hnz r).
+    + left. admit.
+    + right. admit.
+  }
+  (* simplified with Fable 5 *)
+  intros m n.
+  ltac1:(pose proof (proj2_sig (Rinv_exists x (rnz_hnz r))) as HM). simpl in HM.
+  destruct (m <? M)%positive eqn:Hm; destruct (n <? M)%positive eqn:Hn.
+  - rewrite Qeq_cancel_r. easy.
+  - (* m < M, n >= M: left=M^3, right=n*M^2 *)
+    assert (HMm : (m <= M)%positive) by (apply Pos.ltb_lt in Hm; lia).
+    assert (HMn : (M <= n)%positive) by (apply Pos.ltb_ge; exact Hn).
+    apply (Rinv_reg_aux x M (n*M^2) (M^3) n m).
+    + apply HM; nia.
+    + apply HM; nia.
+    + apply reg.
+    + assert ((1#M)*(1#M) == (1#(M^2)%positive)) by (unfold Qeq; simpl; lia).
+      apply Qle_trans with ((1#M) + (1#n)).
+      * apply Qle_lteq; right. rewrite H. ltac1:(field_simplify). unfold Qeq; simpl; lia.
+        unfold Qeq; simpl; lia.
+      * rewrite Qplus_comm. apply Qplus_le_r. unfold Qle; simpl; nia.
+  - (* m >= M, n < M: left=m*M^2, right=M^3 *)
+    assert (HMn : (n <= M)%positive) by (apply Pos.ltb_lt in Hn; lia).
+    assert (HMm : (M <= m)%positive) by (apply Pos.ltb_ge; exact Hm).
+    apply (Rinv_reg_aux x M (M^3) (m*M^2) n m).
+    + apply HM; nia.
+    + apply HM; nia.
+    + rewrite Qabs_Qminus. rewrite Qplus_comm. apply reg.
+    + assert ((1#M)*(1#M) == (1#(M^2)%positive)) by (unfold Qeq; simpl; lia).
+      apply Qle_trans with ((1#M) + (1#m)).
+      * apply Qle_lteq; right. rewrite H. ltac1:(field_simplify). unfold Qeq; simpl; lia.  unfold Qeq; simpl; lia.
+      * apply Qplus_le_l. unfold Qle; simpl; nia.
+  - (* m >= M, n >= M: left=m*M^2, right=n*M^2 *)
+    assert (HMm : (M <= m)%positive) by (apply Pos.ltb_ge; exact Hm).
+    assert (HMn : (M <= n)%positive) by (apply Pos.ltb_ge; exact Hn).
+    apply (Rinv_reg_aux x M (n*M^2) (m*M^2) n m).
+    + apply HM; nia.
+    + apply HM; nia.
+    + apply reg.
+    + assert ((1#M)*(1#M) == (1#(M^2)%positive)) by (unfold Qeq; simpl; lia).
+      apply Qle_trans with ((1#m) + (1#n)).
+      * apply Qle_lteq; right. rewrite H. ltac1:(field_simplify). unfold Qeq; simpl; lia. unfold Qeq; simpl; lia.
+      * proveeq. lra.
+Admitted.
+
+(* part 3 *)
+Proposition Rinv_IsPos (x : RNZ) :
+  IsPos (rnz_r x) <=> IsPos (rnz_r (RNZinv x)).
+Proof.
+Admitted.
+
+(* part 4 *)
+Proposition Rinv_IsNeg (x : RNZ):
+  IsNeg (rnz_r x) <=> IsNeg (rnz_r (RNZinv x)).
+Proof.
+Admitted.
+
+(* part 5 *)
+(* Proposition Rmult_inv_r (x : R) (Hnz : RNeq x (of_Q 0)) :
+  (x * (Rinv x Hnz) ≖ of_Q 1)%R.
+Proof.
+Admitted. *)
+
+(* part 6 *)
+(* Proposition Rinv_unique (x t : R) (Hnz : RNeq x (of_Q 0)) :
+  (x * t ≖ of_Q 1)%R -> t ≖ (Rinv x Hnz).
+Proof.
+Admitted. *)
+
+(* Lemma Rmult_Neq_zero x y (Hxnz : RNeq x (of_Q 0)) (Hynz : RNeq y (of_Q 0)):
+  RNeq (x*y)%R (of_Q 0).
+Proof.
+Admitted. *)
+
+(* part 7 *)
+(* Proposition Rinv_mult x y (Hxnz : RNeq x (of_Q 0)) (Hynz : RNeq y (of_Q 0)) :
+  (Rinv (x*y) (Rmult_Neq_zero x y )) ≖ (Rinv x Hnz).
+Proof.
+Admitted. *)
+
+(* part 8 *)
+
+(* part 9 *)
+
+(* TODO
+Add autocast feature
+Make sum of RNZ and R easier
+write all spec for (2.13) Proposition. 
+prove them all 
+*)
 
 End R.
 
