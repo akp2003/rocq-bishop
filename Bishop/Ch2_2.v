@@ -883,39 +883,6 @@ Proof.
 Defined.
 
 
-(* AI suggested theorem (Opus 5) *)
-Lemma Qmult_lower_bound (a b e M : Q) :
-    0 <= e -> -e <= a -> Qabs a <= M -> -e <= b -> Qabs b <= M ->
-    - (e * M) <= a * b.
-Proof.
-  intros He Ha HaM Hb HbM.
-  assert (HM : 0 <= M).
-  { apply (Qle_trans _ (Qabs a)).
-    - apply Qabs_nonneg.
-    - exact HaM. }
-  assert (HaU : a <= M).
-  { apply (Qle_trans _ (Qabs a)).
-    - apply Qle_Qabs.
-    - exact HaM. }
-  assert (HbU : b <= M).
-  { apply (Qle_trans _ (Qabs b)).
-    - apply Qle_Qabs.
-    - exact HbM. }
-  assert (HeM : 0 <= e * M) by (apply Qmult_le_0_compat; assumption).
-  destruct (Qlt_le_dec a 0) as [Ha0 | Ha0];
-  destruct (Qlt_le_dec b 0) as [Hb0 | Hb0].
-  - assert (H : 0 <= (- a) * (- b)) by (apply Qmult_le_0_compat; lra).
-    lra.
-  - assert (H1 : (- e) * b <= a * b) by (apply Qmult_le_compat_r; assumption).
-    assert (H2 : b * e <= M * e) by (apply Qmult_le_compat_r; assumption).
-    lra.
-  - assert (H1 : (- e) * a <= b * a) by (apply Qmult_le_compat_r; assumption).
-    assert (H2 : a * e <= M * e) by (apply Qmult_le_compat_r; assumption).
-    lra.
-  - assert (H : 0 <= a * b) by (apply Qmult_le_0_compat; assumption).
-    lra.
-Defined.
-
 (* (2.9) Proposition. (a) Part 2 *)
 Proposition Rmult_of_IsNN x y (HNNx : IsNN x) (HNNy : IsNN y) : 
     IsNN (x * y)%R.
@@ -1016,32 +983,12 @@ Proof.
 Defined.
 
 (* AI suggested *)
-Lemma Qhalves (k : positive) : (1 # k) + (1 # k) == (2 # k).
-Proof. unfold Qeq; simpl; lia. Qed.
-
-(* AI suggested *)
 Lemma seq_lower_bound (x : R) (n m : positive) :
     seq x n - (1 # n) - (1 # m) <= seq x m.
 Proof.
   ltac1:(pose proof (reg x n m) as H).
   apply Qabs_Qle_condition in H as [H1 _].
   lra.
-Defined.
-
-Lemma Qmin_eq_neg_Qmax a b : - Qmax a b == Qmin (-a) (-b).
-Proof.
-  (* Human written *)
-   destruct (Q.max_dec a b).
-  - rewrite q.
-    rewrite Q.max_l_iff, Qle_minus_iff in q.
-    rewrite Q.min_l.
-    reflexivity.
-    lra.
-  - rewrite q.
-    rewrite Q.max_r_iff, Qle_minus_iff in q.
-    rewrite Q.min_r.
-    reflexivity.
-    lra.
 Defined.
 
 (* (2.9) Proposition. (e) *)
@@ -1413,70 +1360,6 @@ Proof.
   simpl in HM.
   rewrite Qmax_eq_Qabs_self in HM.
   exact HM.
-Defined.
-
-(* 6 helper lemmas *)
-Lemma Qabs_minus_comm : forall a b : Q, Qabs (a - b) == Qabs (b - a).
-Proof.
-  intros a b.
-  ltac1:(setoid_replace (a - b) with (- (b - a)) by ring).
-  apply Qabs_opp.
-Defined.
-
-Lemma Qinv_diff_bound : forall (a b : Q),
-  ~ a == 0 -> ~ b == 0 ->
-  Qabs (/ a - / b) == Qabs (a - b) * Qabs (/ a) * Qabs (/ b).
-Proof.
-  intros a b Ha Hb.
-  assert (H : / a - / b == (b - a) * / a * / b).
-  { field; split; assumption. }
-  rewrite H.
-  rewrite !Qabs_Qmult.
-  rewrite (Qabs_minus_comm b a).
-  reflexivity.
-Defined.
-
-Lemma Qdiv_le_compat : forall a b c d : Q,
-  0 <= a -> a <= c -> 0 < d -> d <= b ->
-  a / b <= c / d.
-Proof.
-  intros a b c d Ha Hac Hd Hdb.
-  assert (Hb : 0 < b) by (apply Qlt_le_trans with d; assumption).
-  assert (Hc : 0 <= c) by (apply Qle_trans with a; assumption).
-  (* cross-multiplied inequality *)
-  assert (Hcross : a * d <= c * b).
-  { apply Qle_trans with (c * d).
-    apply Qmult_le_compat_r > [ assumption | apply Qlt_le_weak; assumption ].
-    rewrite (Qmult_comm c d), (Qmult_comm c b).
-    apply Qmult_le_compat_r; assumption. }
-  (* shift the division on the right, then on the left *)
-  apply Qle_shift_div_r> [ assumption | ].
-  ltac1:(setoid_replace (c / d * b) with (c * b / d) by
-    (field; intro He; rewrite He in Hd; exact (Qlt_irrefl 0 Hd))).
-  apply Qle_shift_div_l; assumption.
-Defined.
-
-Lemma Qopp_nonzero :
-  forall q : Q,
-    ~ q == 0 ->
-    ~ - q == 0.
-Proof.
-  intros q H Hq.
-  apply H.
-  rewrite <- (Qopp_involutive q), Hq.
-  reflexivity.
-Defined.
-
-(* Why even Fable 5 couldn't figure this out *)
-Lemma Qabs_nonzero :
-  forall q : Q,
-    ~ q == 0 ->
-    ~ Qabs q == 0.
-Proof.
-  intros q H.
-  destruct (Qabs_dec q).
-  + rewrite q0. assumption.
-  + rewrite q0. apply Qopp_nonzero. assumption. 
 Defined.
 
 (* AI suggested for a shorter proof *)
