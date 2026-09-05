@@ -222,7 +222,7 @@ Proof.
   all : lia.
 Qed.
 
-Lemma K_gt x n : Qabs (seq x n) < inject_Z (K x).
+Lemma K_gt x n : Qabs (seq x n) < (K x).
 Proof.
   assert _ by exact (Qlt_floor (Qabs (seq x 1) + 0.5)).
   destruct (Pos.eq_dec n 1).
@@ -261,7 +261,7 @@ Proof.
   (* Either Coq is too stupid or I don't know how to use it!!! *)
 Qed.
 
-Lemma Kp_gt x n : Qabs (seq x n) < inject_P (Kp x).
+Lemma Kp_gt x n : Qabs (seq x n) < (Kp x).
 Proof.
   unfold Kp. unfold inject_P. rewrite (Z2Pos.id _ (K_pos x)).
   exact (K_gt x n).

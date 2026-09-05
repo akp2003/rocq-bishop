@@ -248,8 +248,6 @@ Proof.
   - stepl 0. apply Qabs_nonneg. exact q.
 Qed.
 
-Infix "<=>" := iffT (at level 70, no associativity).
-
 Lemma Qmake_inject_P p : 1 # p = / (inject_P p).
 Proof.
   auto.
@@ -406,3 +404,25 @@ Proof.
   - assert (H : 0 <= a * b) by (apply Qmult_le_0_compat; assumption).
     lra.
 Defined.
+
+
+
+Declare Scope Extra_scope.
+Delimit Scope Extra_scope with Ex.
+
+Open Scope Extra_scope.
+
+Infix "<=>" := iffT (at level 70, no associativity) : Extra_scope.
+
+Definition inject_N n := inject_Z (Z.of_N n).
+
+(* some Coercions *)
+
+Coercion inject_P : positive >-> Q.
+Coercion inject_N : N >-> Q.
+Coercion inject_Z : Z >-> Q.
+
+Coercion Zpos : positive >-> Z.
+Coercion Z.of_N : N >-> Z.
+
+Coercion Npos : positive >-> N.
