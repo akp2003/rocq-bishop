@@ -64,13 +64,13 @@ Print Assumptions R.
   easy. 
 Defined. (*If you write Qed instead of Defined then Compute will show weird things!*)
 
-Print Assumptions of_Q.
+Coercion of_Q : Q >-> R.
 
 Compute (fun (n : positive) => 1 ) 1%positive. (* 1 *)
 
-Compute seq (of_Q 2) 3. (* 2 *)
+Compute seq 2 3. (* 2 *)
 
-Check reg (of_Q 2) 2 4.
+Check reg 2 2 4.
 
 Definition Req (x y : R) : Prop := ∀n, Qabs (seq x n - seq y n) <= Qmake 2 n .
 
@@ -171,7 +171,8 @@ Proof.
 Qed.
 
 (* It is not just a proof, it is an algorithm! *)
-Compute proj1_sig (exists_of_Req_def (of_Q 2) (of_Q 2) (Req_of_Qed 2 2 eq_refl) 500).
+(* Should output 1000 *)
+Compute proj1_sig (exists_of_Req_def 2 2 (Req_of_Qed 2 2 eq_refl) 500). 
 
 (* (2.2) Proposition. (iii) *)
 Proposition Req_trans x y z : x ≖ y -> y ≖ z -> x ≖ z.
@@ -287,7 +288,7 @@ Infix "+" := Rplus : R_scope.
 
 Time Compute (1 + 3).
 
-Time Compute seq ((of_Q 1) + (of_Q 3))%R 10. (* 4 *)
+Time Compute seq (1 + 3)%R 10. (* 4 *)
 
 (* (2.4) Definition. Part (b) *) 
 #[refine] Definition Rmult (x y : R) : R := {| seq := (fun n => (seq x (2*n*(Pos.max (Kp x) (Kp y)))) * (seq y (2*n*(Pos.max (Kp x) (Kp y)))) ) |}.
@@ -315,7 +316,7 @@ Defined.
 
 Infix "*" := Rmult : R_scope.
 
-Time Compute seq ((of_Q 40) * (of_Q 3))%R 10. (* 120 *)
+Time Compute seq (40 * 3)%R 10. (* 120 *)
 
 (* (2.4) Definition. Part (c) *) 
 #[refine] Definition Rmax (x y : R) : R := {| seq := (fun n => Qmax (seq x n) (seq y n)) |}.
@@ -340,12 +341,12 @@ Defined.
 
 Print Assumptions Rmax.
 
-Time Compute seq (Rmax (of_Q 1) (of_Q 200)) 20. (* 200 *)
+Time Compute seq (Rmax 1 200) 20. (* 200 *)
 (* Beautiful *)
 
 Notation "Rmax( x , y , .. , z )" := (Rmax .. (Rmax x y) .. z) : R_scope.
 
-Compute seq (Rmax( (of_Q 1), (of_Q 3) , (of_Q 2242)))%R 3.
+Compute seq (Rmax( 1, 3 , 2242))%R 3.
 
 (* (2.4) Definition. Part (d) *) 
 #[refine] Definition Ropp (x: R) : R := {| seq := (fun n => - seq x n) |}.
@@ -527,7 +528,7 @@ Proof.
 Qed.  
   
 (* (2.6) Proposition. (d) *)
-Proposition Rplus_0_l x : ((of_Q 0) + x)%R ≖ x.
+Proposition Rplus_0_l x : (0 + x)%R ≖ x.
 Proof.
   unfold Req. simpl seq. intros.
   rewrite Qplus_0_l.
@@ -536,7 +537,7 @@ Proof.
   apply reg.
 Qed.
 
-Proposition Rmult_1_l x : ((of_Q 1) * x)%R ≖ x.
+Proposition Rmult_1_l x : (1 * x)%R ≖ x.
 Proof.
   unfold Req. simpl seq. intros.
   rewrite Qmult_1_l.
@@ -549,7 +550,7 @@ Proof.
 Qed.
 
 (* (2.6) Proposition. (e) *)
-Lemma Rplus_opp_r x : (x + - x ≖ (of_Q 0))%R.
+Lemma Rplus_opp_r x : (x + - x ≖ 0)%R.
 Proof.
   unfold Req. do 2 (simpl head seq).
   intros. unfold Qabs,Qle. simpl. lia.
@@ -1403,13 +1404,14 @@ Defined.
 
 Structure RNZ : Set := RNZmake {
     rnz_r : R;
-    rnz_hnz : RNeq rnz_r (of_Q 0)
+    rnz_hnz : RNeq rnz_r 0
   }.
 
+Coercion rnz_r : RNZ >-> R.
+
 (* part 2 *)
-#[refine] Definition RNZinv (r : RNZ) : RNZ :=
- let x := (rnz_r r) in 
- let M := proj1_sig (Rinv_exists x (rnz_hnz r)) in 
+#[refine] Definition RNZinv (x : RNZ) : RNZ :=
+ let M := proj1_sig (Rinv_exists x (rnz_hnz x)) in 
  {| rnz_r := {| seq := (
                 fun n => 
                   if (n <? M)%positive then Qinv (seq x (M^3))
@@ -1420,13 +1422,13 @@ Structure RNZ : Set := RNZmake {
 Proof.
   (* First let's prove the non zero *)
   2:{ 
-    destruct (rnz_hnz r).
+    destruct (rnz_hnz x).
     + left. admit.
     + right. admit.
   }
   (* simplified with Fable 5 *)
   intros m n.
-  ltac1:(pose proof (proj2_sig (Rinv_exists x (rnz_hnz r))) as HM). simpl in HM.
+  ltac1:(pose proof (proj2_sig (Rinv_exists x (rnz_hnz x))) as HM). simpl in HM.
   destruct (m <? M)%positive eqn:Hm; destruct (n <? M)%positive eqn:Hn.
   - rewrite Qeq_cancel_r. easy.
   - (* m < M, n >= M: left=M^3, right=n*M^2 *)
@@ -1465,51 +1467,45 @@ Proof.
       * proveeq. lra.
 Admitted.
 
+Notation "/ x" := (RNZinv x) : R_scope.
+
 (* part 3 *)
-Proposition Rinv_IsPos (x : RNZ) :
-  IsPos (rnz_r x) <=> IsPos (rnz_r (RNZinv x)).
+Proposition RNZinv_IsPos (x : RNZ) :
+  IsPos x <=> IsPos (/ x)%R.
 Proof.
 Admitted.
 
 (* part 4 *)
-Proposition Rinv_IsNeg (x : RNZ):
-  IsNeg (rnz_r x) <=> IsNeg (rnz_r (RNZinv x)).
+Proposition RNZinv_IsNeg (x : RNZ):
+  IsNeg x <=> IsNeg (/ x)%R.
 Proof.
 Admitted.
 
 (* part 5 *)
-(* Proposition Rmult_inv_r (x : R) (Hnz : RNeq x (of_Q 0)) :
-  (x * (Rinv x Hnz) ≖ of_Q 1)%R.
+Proposition Rmult_inv_r (x : RNZ) :
+  (x * (/ x) ≖ 1)%R.
 Proof.
-Admitted. *)
+Admitted.
 
 (* part 6 *)
-(* Proposition Rinv_unique (x t : R) (Hnz : RNeq x (of_Q 0)) :
-  (x * t ≖ of_Q 1)%R -> t ≖ (Rinv x Hnz).
+Proposition RNZinv_unique (t : R) (x : RNZ) :
+  (x * t ≖ 1)%R -> t ≖ (/ x)%R.
 Proof.
-Admitted. *)
+Admitted.
 
-(* Lemma Rmult_Neq_zero x y (Hxnz : RNeq x (of_Q 0)) (Hynz : RNeq y (of_Q 0)):
-  RNeq (x*y)%R (of_Q 0).
+#[refine] Definition RNZmult (x y : RNZ) : RNZ := {| rnz_r := (x*y)%R; rnz_hnz := _ |}.
 Proof.
-Admitted. *)
+Admitted.
 
 (* part 7 *)
-(* Proposition Rinv_mult x y (Hxnz : RNeq x (of_Q 0)) (Hynz : RNeq y (of_Q 0)) :
-  (Rinv (x*y) (Rmult_Neq_zero x y )) ≖ (Rinv x Hnz).
+Proposition RNZinv_mult (x y : RNZ) :
+  ((/ (RNZmult x y)) ≖ (/ x) * (/ y))%R.
 Proof.
-Admitted. *)
+Admitted.
 
 (* part 8 *)
 
 (* part 9 *)
-
-(* TODO
-Add autocast feature
-Make sum of RNZ and R easier
-write all spec for (2.13) Proposition. 
-prove them all 
-*)
 
 End R.
 
